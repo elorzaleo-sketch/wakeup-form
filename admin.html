@@ -158,8 +158,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
 <script>
   const SUPABASE_URL = 'https://mzousqdahqterfawhwsz.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16b3VzcWRhaHF0ZXJmYXdod3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTc4MzUsImV4cCI6MjA5NjA5MzgzNX0.EdSlcRdLD75OdYlwtZGLVgL_PGpJysWb_MKvuwGgj5Y';
@@ -240,75 +239,102 @@
     if (!error) { const a = allAlumnos.find(x => x.id === id); if (a) a.check_completado = !current; updateStats(); renderTable(); }
   }
 
+  async function imgToBase64(url) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  }
+
   async function exportDocx() {
     const btn = document.getElementById('exportBtn');
-    btn.disabled = true; btn.textContent = 'Generando...';
+    btn.disabled = true;
+    btn.textContent = 'Descargando fotos...';
+
     try {
       const filtered = getFiltered();
-      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-              ImageRun, AlignmentType, WidthType, BorderStyle, VerticalAlign, ShadingType } = docx;
-
-      const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
-      const borders = { top: border, bottom: border, left: border, right: border };
-      const hBorder = { style: BorderStyle.SINGLE, size: 1, color: "5DB4C9" };
-      const hBorders = { top: hBorder, bottom: hBorder, left: hBorder, right: hBorder };
-
-      const headerRow = new TableRow({
-        tableHeader: true,
-        children: [
-          { text: 'Apellido', w: 1800 }, { text: 'Nombre', w: 1800 },
-          { text: 'Apodo', w: 1500 }, { text: 'Colegio', w: 2100 }, { text: 'Foto', w: 1800 }
-        ].map(({ text, w }) => new TableCell({
-          borders: hBorders,
-          width: { size: w, type: WidthType.DXA },
-          margins: { top: 100, bottom: 100, left: 120, right: 120 },
-          verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 20, font: "Arial", color: "5DB4C9" })] })]
-        }))
-      });
-
-      const dataRows = await Promise.all(filtered.map(async (a) => {
-        let photoCell;
-        if (a.foto_url) {
-          try {
-            const res = await fetch(a.foto_url);
-            const buf = await res.arrayBuffer();
-            const ext = (a.foto_url.split('.').pop().split('?')[0] || 'jpg').toLowerCase();
-            const imgType = ext === 'png' ? 'png' : 'jpeg';
-            photoCell = new TableCell({
-              borders, width: { size: 1800, type: WidthType.DXA },
-              margins: { top: 60, bottom: 60, left: 60, right: 60 },
-              verticalAlign: VerticalAlign.CENTER,
-              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: buf, type: imgType, transformation: { width: 80, height: 80 } })] })]
-            });
-          } catch {
-            photoCell = new TableCell({ borders, width: { size: 1800, type: WidthType.DXA }, margins: { top: 80, bottom: 80, left: 120, right: 120 }, children: [new Paragraph({ children: [new TextRun({ text: 'Sin foto', size: 18, font: "Arial", color: "888888" })] })] });
-          }
-        } else {
-          photoCell = new TableCell({ borders, width: { size: 1800, type: WidthType.DXA }, margins: { top: 80, bottom: 80, left: 120, right: 120 }, children: [new Paragraph({ children: [new TextRun({ text: '—', size: 18, font: "Arial" })] })] });
-        }
-        const cell = (text, w) => new TableCell({ borders, width: { size: w, type: WidthType.DXA }, margins: { top: 100, bottom: 100, left: 120, right: 120 }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: text||'—', size: 18, font: "Arial" })] })] });
-        return new TableRow({ children: [cell(a.apellido,1800), cell(a.nombre,1800), cell(a.apodo,1500), cell(a.colegio,2100), photoCell] });
-      }));
-
       const today = new Date().toLocaleDateString('es-AR');
-      const doc = new Document({
-        sections: [{ properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, right: 900, bottom: 1080, left: 900 } } },
-          children: [
-            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: 'Wake Up Viajes — Fichas de alumnos', bold: true, size: 28, font: "Arial" })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 360 }, children: [new TextRun({ text: `Exportado el ${today}`, size: 18, font: "Arial", color: "888888" })] }),
-            new Table({ width: { size: 9000, type: WidthType.DXA }, columnWidths: [1800, 1800, 1500, 2100, 1800], rows: [headerRow, ...dataRows] })
-          ]
-        }]
-      });
 
-      const blob = await Packer.toBlob(doc);
-      saveAs(blob, `wakeup-fichas-${today.replace(/\//g,'-')}.docx`);
+      // Load all images as base64
+      const imgMap = {};
+      for (const a of filtered) {
+        if (a.foto_url) {
+          btn.textContent = `Cargando fotos... (${Object.keys(imgMap).length + 1}/${filtered.length})`;
+          imgMap[a.id] = await imgToBase64(a.foto_url);
+        }
+      }
+
+      btn.textContent = 'Generando archivo...';
+
+      // Build HTML that Word can open
+      const rows = filtered.map(a => {
+        const b64 = imgMap[a.id];
+        const fotoCell = b64
+          ? `<td style="width:100px;text-align:center;padding:6px;vertical-align:middle"><img src="${b64}" width="80" height="80" style="object-fit:cover;border-radius:4px"></td>`
+          : `<td style="width:100px;text-align:center;color:#888;padding:6px;vertical-align:middle">Sin foto</td>`;
+        return `<tr>
+          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.apellido||'—'}</td>
+          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.nombre||'—'}</td>
+          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial;color:#555">${a.apodo||'—'}</td>
+          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.colegio||'—'}</td>
+          ${fotoCell}
+        </tr>`;
+      }).join('');
+
+      const html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office"
+              xmlns:w="urn:schemas-microsoft-com:office:word"
+              xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8">
+          <title>Wake Up Viajes</title>
+          <!--[if gte mso 9]>
+          <xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml>
+          <![endif]-->
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            h1 { font-size: 18pt; margin-bottom: 4px; }
+            .sub { font-size: 10pt; color: #888; margin-bottom: 20px; }
+            table { border-collapse: collapse; width: 100%; }
+            th { background: #0a0a0a; color: #5DB4C9; font-family: Arial; font-size: 10pt; padding: 8px 10px; text-align: left; border: 1px solid #ccc; }
+            td { border: 1px solid #ccc; font-size: 10pt; }
+            tr:nth-child(even) td { background: #f9f9f9; }
+          </style>
+        </head>
+        <body>
+          <h1>Wake Up Viajes — Fichas de alumnos</h1>
+          <p class="sub">Exportado el ${today} · ${filtered.length} alumnos</p>
+          <table>
+            <thead><tr>
+              <th>Apellido</th><th>Nombre</th><th>Apodo</th><th>Colegio</th><th>Foto</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+        </html>`;
+
+      const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wakeup-fichas-${today.replace(/\//g, '-')}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
     } catch(err) {
       console.error(err);
-      alert('Error al generar el archivo. Revisá la consola para más detalles.');
+      alert('Error al generar el archivo. Intentá de nuevo.');
     }
-    btn.disabled = false; btn.textContent = '⬇ Exportar .docx';
+
+    btn.disabled = false;
+    btn.textContent = '⬇ Exportar .docx';
   }
 </script>
 </body>

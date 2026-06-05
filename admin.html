@@ -520,11 +520,11 @@
         <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
-            ${isReadOnly?'readonly style="cursor:default;color:var(--muted)"':'onblur="saveField(''+a.id+'','obs_salud',this.value,this)"'}>
+            id="obs_salud_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_salud',this.value,this)" ${isReadOnly?'readonly':''}>
         </td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin restricciones" value="${a.obs_dieta||''}"
-            ${isReadOnly?'readonly style="cursor:default;color:var(--muted)"':'onblur="saveField(''+a.id+'','obs_dieta',this.value,this)"'}>
+            id="obs_dieta_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_dieta',this.value,this)" ${isReadOnly?'readonly':''}>
         </td>
         <td>
           <span class="${a.check_completado?'check-done':'check-pending'}"
@@ -533,9 +533,7 @@
           </span>
         </td>
         <td>
-          ${!isReadOnly?`<button onclick="askDeleteAlumno('${a.id}','${a.nombre} ${a.apellido}')"
-            style="background:none;border:none;color:#333;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;transition:color .15s"
-            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>`:''}
+          ${isReadOnly?'':`<button onclick="askDeleteAlumno('`+a.id+`','`+a.nombre+` `+a.apellido+`')" style="background:none;border:none;color:#333;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>`}
         </td>
       </tr>`).join('');
   }

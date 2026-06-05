@@ -321,10 +321,13 @@
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      const nuevos=rows.slice(1).filter(r=>r[0]||r[1]).map(r=>({
-        apellido:(r[0]||'').toString().trim(),
-        nombre:(r[1]||'').toString().trim()
-      })).filter(r=>r.apellido||r.nombre);
+      const nuevos=rows.slice(1)
+        .filter(r=>Array.isArray(r) && r.length>=1 && r[0] && r[0].toString().trim()!=='')
+        .map(r=>({
+          apellido:(r[0]||'').toString().trim(),
+          nombre:(r[1]||'').toString().trim()
+        }))
+        .filter(r=>r.apellido.length>0);
 
       if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 
@@ -732,10 +735,13 @@
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      const nuevos=rows.slice(1).filter(r=>r[0]||r[1]).map(r=>({
-        apellido:(r[0]||'').toString().trim(),
-        nombre:(r[1]||'').toString().trim()
-      })).filter(r=>r.apellido||r.nombre);
+      const nuevos=rows.slice(1)
+        .filter(r=>Array.isArray(r) && r.length>=1 && r[0] && r[0].toString().trim()!=='')
+        .map(r=>({
+          apellido:(r[0]||'').toString().trim(),
+          nombre:(r[1]||'').toString().trim()
+        }))
+        .filter(r=>r.apellido.length>0);
 
       if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 

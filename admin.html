@@ -253,7 +253,7 @@
 
     try {
       // Dynamically load docx + FileSaver
-      await loadScript('https://cdn.jsdelivr.net/npm/docx@9.5.0/dist/index.umd.cjs');
+      await loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js');
       await loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js');
 
       const filtered = getFiltered();
@@ -271,10 +271,13 @@
 
       btn.textContent = 'Generando archivo...';
 
+      const docxLib = window.docx || window.Document && window || {};
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         ImageRun, AlignmentType, WidthType, BorderStyle, VerticalAlign, ShadingType
-      } = window.docx;
+      } = docxLib;
+
+      if (!Document || !Packer) throw new Error('No se pudo cargar la librería docx. Intentá recargar la página.');
 
       const grayBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
       const borders = { top: grayBorder, bottom: grayBorder, left: grayBorder, right: grayBorder };

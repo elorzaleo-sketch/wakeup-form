@@ -174,8 +174,9 @@
         <option>Berazategui</option><option>El Encuentro</option><option>Emanuel</option>
         <option>Hay Vida En Jesús</option><option>M. T Alvear</option><option>Menoyo</option><option>Zion</option>
       </select>
-      <button class="export-btn" onclick="exportDocx(false)" id="exportBtn">⬇ Exportar todos</button>
-      <button class="export-obs-btn" onclick="exportDocx(true)" id="exportObsBtn">⬇ Solo con observaciones</button>
+      <button class="export-btn" onclick="exportDocx('fichas')" id="exportBtn">⬇ Fichas + fotos</button>
+      <button class="export-obs-btn" onclick="exportDocx('obs')" id="exportObsBtn">⬇ Observaciones</button>
+      <button class="export-obs-btn" onclick="exportDocx('padres')" id="exportPadresBtn" style="border-color:var(--green);color:var(--green)">⬇ Datos de padres</button>
     </div>
 
     <div class="table-wrap">
@@ -308,8 +309,8 @@
         <td><strong>${a.apellido||'—'}</strong></td>
         <td>${a.nombre||'—'}</td>
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
-        <td><span class="badge">${a.colegio||'—'}</span></td>
-        <td>${a.edad||'—'}</td>
+        <td><select class="obs-input" style="width:120px" onchange="saveField('${a.id}','colegio',this.value)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
+        <td><select class="obs-input" style="width:60px" onchange="saveField('${a.id}','edad',this.value)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
         <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
@@ -364,23 +365,28 @@
     });
   }
 
-  async function exportDocx(soloObs){
-    const btn=soloObs?document.getElementById('exportObsBtn'):document.getElementById('exportBtn');
+  async function exportDocx(mode){
+    const btnMap={fichas:'exportBtn',obs:'exportObsBtn',padres:'exportPadresBtn'};
+    const labelMap={fichas:'⬇ Fichas + fotos',obs:'⬇ Observaciones',padres:'⬇ Datos de padres'};
+    const btn=document.getElementById(btnMap[mode]);
     btn.disabled=true;btn.textContent='Cargando librería...';
     try{
       await loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js');
       await loadScript('https://unpkg.com/docx@7.8.2/build/index.js');
 
       let filtered=getFiltered();
-      if(soloObs)filtered=filtered.filter(a=>a.obs_salud||a.obs_dieta);
-
-      if(filtered.length===0){alert('No hay alumnos con observaciones en la selección actual.');btn.disabled=false;btn.textContent=soloObs?'⬇ Solo con observaciones':'⬇ Exportar todos';return;}
+      if(mode==='obs') filtered=filtered.filter(a=>a.obs_salud||a.obs_dieta);
+      if(filtered.length===0){alert('No hay alumnos con observaciones en la selección actual.');btn.disabled=false;btn.textContent=labelMap[mode];return;}
 
       const today=new Date().toLocaleDateString('es-AR');
+
+      // Load images only for modes that need photos
       const imgMap={};
-      for(let i=0;i<filtered.length;i++){
-        const a=filtered[i];
-        if(a.foto_url){btn.textContent=`Cargando fotos... ${i+1}/${filtered.length}`;imgMap[a.id]=await imgToArrayBuffer(a.foto_url);}
+      if(mode==='fichas'||mode==='obs'){
+        for(let i=0;i<filtered.length;i++){
+          const a=filtered[i];
+          if(a.foto_url){btn.textContent=`Cargando fotos... ${i+1}/${filtered.length}`;imgMap[a.id]=await imgToArrayBuffer(a.foto_url);}
+        }
       }
       btn.textContent='Generando archivo...';
 
@@ -394,69 +400,75 @@
       const cb={style:BorderStyle.SINGLE,size:3,color:'5DB4C9'};
       const hBorders={top:cb,bottom:cb,left:cb,right:cb};
 
-      const colWidths=soloObs?[1400,1400,1200,1600,1600,1800]:[1700,1700,1400,1900,1300];
-      const headers=soloObs
-        ?['Apellido','Nombre','Apodo','Colegio','Obs. médicas','Dieta']
-        :['Apellido','Nombre','Apodo','Colegio','Foto'];
+      // Column config per mode
+      const configs={
+        fichas:{colWidths:[1700,1700,1400,1900,1300],headers:['Apellido','Nombre','Apodo','Colegio','Foto']},
+        obs:   {colWidths:[1300,1300,1000,1300,1300,1300,1500],headers:['Apellido','Nombre','Apodo','Colegio','Obs. médicas','Dieta','Foto']},
+        padres:{colWidths:[1300,1300,1400,1800,1700,1800],headers:['Apellido','Nombre','Colegio','Nombre padre','Tel. padre','Nombre madre']}
+      };
+      const {colWidths,headers}=configs[mode];
+
+      const mkCell=(text,idx,color,w)=>new TableCell({
+        borders,
+        width:{size:w||colWidths[idx],type:WidthType.DXA},
+        margins:{top:100,bottom:100,left:120,right:120},
+        verticalAlign:VerticalAlign.CENTER,
+        children:[new Paragraph({children:[new TextRun({text:text||'—',size:18,font:'Arial',color:color||'000000'})]})]
+      });
+
+      const mkPhotoCell=(buf,idx)=>buf
+        ?new TableCell({borders,width:{size:colWidths[idx],type:WidthType.DXA},margins:{top:60,bottom:60,left:60,right:60},verticalAlign:VerticalAlign.CENTER,
+            children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:buf,type:'jpeg',transformation:{width:75,height:75}})]})]})
+        :mkCell('Sin foto',idx,'888888');
 
       const headerRow=new TableRow({
         tableHeader:true,
         children:headers.map((text,i)=>new TableCell({
-          borders:hBorders,
-          shading:{fill:'0a0a0a',type:ShadingType.CLEAR},
+          borders:hBorders,shading:{fill:'0a0a0a',type:ShadingType.CLEAR},
           width:{size:colWidths[i],type:WidthType.DXA},
-          margins:{top:100,bottom:100,left:120,right:120},
-          verticalAlign:VerticalAlign.CENTER,
+          margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,
           children:[new Paragraph({children:[new TextRun({text,bold:true,size:20,font:'Arial',color:'5DB4C9'})]})]
         }))
       });
 
-      const dataRows=await Promise.all(filtered.map(async(a)=>{
-        const mkCell=(text,idx,color)=>new TableCell({
-          borders,width:{size:colWidths[idx],type:WidthType.DXA},
-          margins:{top:100,bottom:100,left:120,right:120},
-          verticalAlign:VerticalAlign.CENTER,
-          children:[new Paragraph({children:[new TextRun({text:text||'—',size:18,font:'Arial',color:color||'000000'})]})]
-        });
-
-        if(soloObs){
+      const dataRows=filtered.map(a=>{
+        const buf=imgMap[a.id];
+        if(mode==='fichas'){
+          return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),mkPhotoCell(buf,4)]});
+        }
+        if(mode==='obs'){
           return new TableRow({children:[
             mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),
-            mkCell(a.obs_salud,4,'CC0000'),mkCell(a.obs_dieta,5,'996600')
+            mkCell(a.obs_salud,4,'CC0000'),mkCell(a.obs_dieta,5,'996600'),mkPhotoCell(buf,6)
           ]});
         }
+        if(mode==='padres'){
+          return new TableRow({children:[
+            mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.colegio,2),
+            mkCell(a.nombre_padre,3),mkCell(a.telefono_padre,4),mkCell(a.nombre_madre,5)
+          ]});
+        }
+      });
 
-        const buf=imgMap[a.id];
-        const photoCell=buf
-          ?new TableCell({borders,width:{size:colWidths[4],type:WidthType.DXA},margins:{top:60,bottom:60,left:60,right:60},verticalAlign:VerticalAlign.CENTER,
-              children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:buf,type:'jpeg',transformation:{width:75,height:75}})]})]})
-          :new TableCell({borders,width:{size:colWidths[4],type:WidthType.DXA},margins:{top:100,bottom:100,left:120,right:120},
-              children:[new Paragraph({children:[new TextRun({text:'—',size:18,font:'Arial'})]})]});
-
-        return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),photoCell]});
-      }));
-
+      const titles={fichas:'Wake Up Viajes — Fichas de alumnos',obs:'Wake Up Viajes — Alumnos con observaciones',padres:'Wake Up Viajes — Datos de padres'};
+      const suffixes={fichas:'',obs:'-observaciones',padres:'-padres'};
       const totalWidth=colWidths.reduce((a,b)=>a+b,0);
-      const title=soloObs?'Wake Up Viajes — Alumnos con observaciones':'Wake Up Viajes — Fichas de alumnos';
 
       const doc=new Document({sections:[{
         properties:{page:{size:{width:12240,height:15840},margin:{top:1080,right:900,bottom:1080,left:900}}},
         children:[
-          new Paragraph({spacing:{after:160},children:[new TextRun({text:title,bold:true,size:28,font:'Arial'})]}),
+          new Paragraph({spacing:{after:160},children:[new TextRun({text:titles[mode],bold:true,size:28,font:'Arial'})]}),
           new Paragraph({spacing:{after:360},children:[new TextRun({text:`Exportado el ${today} · ${filtered.length} alumnos`,size:18,font:'Arial',color:'888888'})]}),
           new Table({width:{size:totalWidth,type:WidthType.DXA},columnWidths:colWidths,rows:[headerRow,...dataRows]})
         ]
       }]});
 
       const blob=await Packer.toBlob(doc);
-      const suffix=soloObs?'-observaciones':'';
-      saveAs(blob,`wakeup-fichas${suffix}-${today.replace(/\//g,'-')}.docx`);
+      saveAs(blob,`wakeup-fichas${suffixes[mode]}-${today.replace(/\//g,'-')}.docx`);
     }catch(err){
-      console.error(err);
-      alert('Error: '+err.message);
+      console.error(err);alert('Error: '+err.message);
     }
-    btn.disabled=false;
-    btn.textContent=soloObs?'⬇ Solo con observaciones':'⬇ Exportar todos';
+    btn.disabled=false;btn.textContent=labelMap[mode];
   }
 </script>
 </body>

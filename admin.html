@@ -239,102 +239,160 @@
     if (!error) { const a = allAlumnos.find(x => x.id === id); if (a) a.check_completado = !current; updateStats(); renderTable(); }
   }
 
-  async function imgToBase64(url) {
+  async function imgToArrayBuffer(url) {
     try {
       const res = await fetch(url);
-      const blob = await res.blob();
-      return await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-      });
+      return await res.arrayBuffer();
     } catch { return null; }
   }
 
   async function exportDocx() {
     const btn = document.getElementById('exportBtn');
     btn.disabled = true;
-    btn.textContent = 'Descargando fotos...';
+    btn.textContent = 'Cargando librería...';
 
     try {
+      // Dynamically load docx + FileSaver
+      await loadScript('https://cdn.jsdelivr.net/npm/docx@9.5.0/dist/index.umd.cjs');
+      await loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js');
+
       const filtered = getFiltered();
       const today = new Date().toLocaleDateString('es-AR');
 
-      // Load all images as base64
+      // Fetch all images
       const imgMap = {};
-      for (const a of filtered) {
+      for (let i = 0; i < filtered.length; i++) {
+        const a = filtered[i];
         if (a.foto_url) {
-          btn.textContent = `Cargando fotos... (${Object.keys(imgMap).length + 1}/${filtered.length})`;
-          imgMap[a.id] = await imgToBase64(a.foto_url);
+          btn.textContent = `Cargando fotos... ${i + 1}/${filtered.length}`;
+          imgMap[a.id] = await imgToArrayBuffer(a.foto_url);
         }
       }
 
       btn.textContent = 'Generando archivo...';
 
-      // Build HTML that Word can open
-      const rows = filtered.map(a => {
-        const b64 = imgMap[a.id];
-        const fotoCell = b64
-          ? `<td style="width:100px;text-align:center;padding:6px;vertical-align:middle"><img src="${b64}" width="80" height="80" style="object-fit:cover;border-radius:4px"></td>`
-          : `<td style="width:100px;text-align:center;color:#888;padding:6px;vertical-align:middle">Sin foto</td>`;
-        return `<tr>
-          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.apellido||'—'}</td>
-          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.nombre||'—'}</td>
-          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial;color:#555">${a.apodo||'—'}</td>
-          <td style="padding:8px 10px;vertical-align:middle;font-family:Arial">${a.colegio||'—'}</td>
-          ${fotoCell}
-        </tr>`;
-      }).join('');
+      const {
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+        ImageRun, AlignmentType, WidthType, BorderStyle, VerticalAlign, ShadingType
+      } = window.docx;
 
-      const html = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office"
-              xmlns:w="urn:schemas-microsoft-com:office:word"
-              xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-          <meta charset="utf-8">
-          <title>Wake Up Viajes</title>
-          <!--[if gte mso 9]>
-          <xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml>
-          <![endif]-->
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            h1 { font-size: 18pt; margin-bottom: 4px; }
-            .sub { font-size: 10pt; color: #888; margin-bottom: 20px; }
-            table { border-collapse: collapse; width: 100%; }
-            th { background: #0a0a0a; color: #5DB4C9; font-family: Arial; font-size: 10pt; padding: 8px 10px; text-align: left; border: 1px solid #ccc; }
-            td { border: 1px solid #ccc; font-size: 10pt; }
-            tr:nth-child(even) td { background: #f9f9f9; }
-          </style>
-        </head>
-        <body>
-          <h1>Wake Up Viajes — Fichas de alumnos</h1>
-          <p class="sub">Exportado el ${today} · ${filtered.length} alumnos</p>
-          <table>
-            <thead><tr>
-              <th>Apellido</th><th>Nombre</th><th>Apodo</th><th>Colegio</th><th>Foto</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </body>
-        </html>`;
+      const grayBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
+      const borders = { top: grayBorder, bottom: grayBorder, left: grayBorder, right: grayBorder };
+      const cyanBorder = { style: BorderStyle.SINGLE, size: 4, color: "5DB4C9" };
+      const hBorders = { top: cyanBorder, bottom: cyanBorder, left: cyanBorder, right: cyanBorder };
 
-      const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `wakeup-fichas-${today.replace(/\//g, '-')}.doc`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const colWidths = [1900, 1900, 1600, 2000, 1600]; // sum = 9000
+
+      const headerRow = new TableRow({
+        tableHeader: true,
+        children: ['Apellido', 'Nombre', 'Apodo', 'Colegio', 'Foto'].map((text, i) =>
+          new TableCell({
+            borders: hBorders,
+            shading: { fill: "0a0a0a", type: ShadingType.CLEAR },
+            width: { size: colWidths[i], type: WidthType.DXA },
+            margins: { top: 100, bottom: 100, left: 120, right: 120 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({
+              children: [new TextRun({ text, bold: true, size: 20, font: "Arial", color: "5DB4C9" })]
+            })]
+          })
+        )
+      });
+
+      const dataRows = await Promise.all(filtered.map(async (a) => {
+        const buf = imgMap[a.id];
+        const photoCell = buf
+          ? new TableCell({
+              borders,
+              width: { size: colWidths[4], type: WidthType.DXA },
+              margins: { top: 60, bottom: 60, left: 60, right: 60 },
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new ImageRun({
+                  data: buf,
+                  type: 'jpeg',
+                  transformation: { width: 75, height: 75 }
+                })]
+              })]
+            })
+          : new TableCell({
+              borders,
+              width: { size: colWidths[4], type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 120, right: 120 },
+              children: [new Paragraph({ children: [new TextRun({ text: '—', size: 18, font: "Arial" })] })]
+            });
+
+        const mkCell = (text, idx) => new TableCell({
+          borders,
+          width: { size: colWidths[idx], type: WidthType.DXA },
+          margins: { top: 100, bottom: 100, left: 120, right: 120 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({
+            children: [new TextRun({ text: text || '—', size: 18, font: "Arial" })]
+          })]
+        });
+
+        return new TableRow({
+          children: [
+            mkCell(a.apellido, 0),
+            mkCell(a.nombre, 1),
+            mkCell(a.apodo, 2),
+            mkCell(a.colegio, 3),
+            photoCell
+          ]
+        });
+      }));
+
+      const doc = new Document({
+        sections: [{
+          properties: {
+            page: {
+              size: { width: 12240, height: 15840 },
+              margin: { top: 1080, right: 900, bottom: 1080, left: 900 }
+            }
+          },
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.LEFT,
+              spacing: { after: 160 },
+              children: [new TextRun({ text: 'Wake Up Viajes — Fichas de alumnos', bold: true, size: 28, font: "Arial" })]
+            }),
+            new Paragraph({
+              alignment: AlignmentType.LEFT,
+              spacing: { after: 360 },
+              children: [new TextRun({ text: `Exportado el ${today} · ${filtered.length} alumnos`, size: 18, font: "Arial", color: "888888" })]
+            }),
+            new Table({
+              width: { size: 9000, type: WidthType.DXA },
+              columnWidths: colWidths,
+              rows: [headerRow, ...dataRows]
+            })
+          ]
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `wakeup-fichas-${today.replace(/\//g, '-')}.docx`);
 
     } catch(err) {
       console.error(err);
-      alert('Error al generar el archivo. Intentá de nuevo.');
+      alert('Error al generar el archivo: ' + err.message);
     }
 
     btn.disabled = false;
     btn.textContent = '⬇ Exportar .docx';
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
   }
 </script>
 </body>

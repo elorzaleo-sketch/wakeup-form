@@ -253,8 +253,8 @@
 
     try {
       // Dynamically load docx + FileSaver
-      await loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js');
       await loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js');
+      await loadScript('https://unpkg.com/docx@7.8.2/build/index.js');
 
       const filtered = getFiltered();
       const today = new Date().toLocaleDateString('es-AR');

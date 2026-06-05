@@ -211,7 +211,7 @@
         <thead><tr>
           <th>Foto</th>
           <th class="sortable" onclick="sortBy('apellido')">Apellido</th>
-          <th class="sortable" onclick="sortBy('nombre')">Nombre</th>
+          <th class="sortable" onclick="sortBy('nombre')">Nombre completo</th>
           <th class="sortable" onclick="sortBy('apodo')">Nombre preferido</th>
           <th class="sortable" onclick="sortBy('colegio')">Colegio</th>
           <th class="sortable" onclick="sortBy('edad')">Edad</th>
@@ -596,9 +596,9 @@
 
       // Column config per mode
       const configs={
-        fichas:{colWidths:[1700,1700,1400,1900,1300],headers:['Apellido','Nombre','Apodo','Colegio','Foto']},
-        obs:   {colWidths:[1300,1300,1000,1300,1300,1300,1500],headers:['Apellido','Nombre','Apodo','Colegio','Obs. médicas','Dieta','Foto']},
-        padres:{colWidths:[1300,1300,1400,1800,1700,1800],headers:['Apellido','Nombre','Colegio','Nombre padre','Tel. padre','Nombre madre']}
+        fichas:{colWidths:[1700,1700,1500,1900,1200],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Foto']},
+        obs:   {colWidths:[1300,1300,1000,1300,1300,1300,1500],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Obs. médicas','Dieta','Foto']},
+        padres:{colWidths:[1300,1300,1400,1800,1700,1800],headers:['Apellido','Nombre completo','Colegio','Nombre padre','Tel. padre','Nombre madre']}
       };
       const {colWidths,headers}=configs[mode];
 

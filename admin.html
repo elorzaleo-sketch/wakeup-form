@@ -178,6 +178,7 @@
     </div>
     <div class="topbar-right">
       <span id="totalBadge" style="font-size:13px;color:var(--muted)"></span>
+      <button class="logout-btn" onclick="recargarDatos()" id="refreshBtn">↻ Actualizar</button>
       <button class="logout-btn" onclick="doLogout()">Cerrar sesión</button>
     </div>
   </div>
@@ -321,13 +322,15 @@
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      const nuevos=rows.slice(1)
-        .filter(r=>Array.isArray(r) && r.length>=1 && r[0] && r[0].toString().trim()!=='')
-        .map(r=>({
-          apellido:(r[0]||'').toString().trim(),
-          nombre:(r[1]||'').toString().trim()
-        }))
-        .filter(r=>r.apellido.length>0);
+      // Use sheet_to_json with default object mode (uses first row as keys)
+      const objRows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      // Detect key names (could be 'Apellido'/'Nombre' or column letters)
+      const nuevos=objRows.map(r=>{
+        // Try common key names
+        const apellido=(r['Apellido']||r['apellido']||r['APELLIDO']||Object.values(r)[0]||'').toString().trim();
+        const nombre=(r['Nombre']||r['nombre']||r['NOMBRE']||Object.values(r)[1]||'').toString().trim();
+        return {apellido,nombre};
+      }).filter(r=>r.apellido.length>0);
 
       if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 
@@ -395,15 +398,26 @@
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('adminScreen').style.display='block';
       loadAlumnos();
+      autoRefreshInterval=setInterval(recargarDatos,60000);
     } else {
       document.getElementById('loginError').style.display='block';
     }
   }
 
   function doLogout(){
+    if(autoRefreshInterval)clearInterval(autoRefreshInterval);
     document.getElementById('adminScreen').style.display='none';
     document.getElementById('loginScreen').style.display='flex';
     document.getElementById('passwordInput').value='';
+  }
+
+  let autoRefreshInterval=null;
+
+  async function recargarDatos(){
+    const btn=document.getElementById('refreshBtn');
+    if(btn){btn.textContent='↻ Actualizando...';btn.disabled=true;}
+    await loadAlumnos();
+    if(btn){btn.textContent='↻ Actualizar';btn.disabled=false;}
   }
 
   async function loadAlumnos(){
@@ -735,13 +749,15 @@
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      const nuevos=rows.slice(1)
-        .filter(r=>Array.isArray(r) && r.length>=1 && r[0] && r[0].toString().trim()!=='')
-        .map(r=>({
-          apellido:(r[0]||'').toString().trim(),
-          nombre:(r[1]||'').toString().trim()
-        }))
-        .filter(r=>r.apellido.length>0);
+      // Use sheet_to_json with default object mode (uses first row as keys)
+      const objRows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      // Detect key names (could be 'Apellido'/'Nombre' or column letters)
+      const nuevos=objRows.map(r=>{
+        // Try common key names
+        const apellido=(r['Apellido']||r['apellido']||r['APELLIDO']||Object.values(r)[0]||'').toString().trim();
+        const nombre=(r['Nombre']||r['nombre']||r['NOMBRE']||Object.values(r)[1]||'').toString().trim();
+        return {apellido,nombre};
+      }).filter(r=>r.apellido.length>0);
 
       if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 

@@ -201,6 +201,7 @@
       <button class="export-obs-btn" onclick="exportDocx('obs')" id="exportObsBtn">⬇ Observaciones</button>
       <button class="export-obs-btn" onclick="exportDocx('padres')" id="exportPadresBtn" style="border-color:var(--green);color:var(--green)">⬇ Datos de padres</button>
       <button class="faltantes-btn" onclick="openFaltantes()">👥 Ver faltantes</button>
+      <button class="faltantes-btn" onclick="openPasajeros()" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
     </div>
 
     <div class="table-wrap">
@@ -217,6 +218,7 @@
           <th>Obs. médicas</th>
           <th>Dieta</th>
           <th>Revisado ✓</th>
+          <th></th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -235,11 +237,40 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-  function openFaltantes(){
+
+  // ── FALTANTES ──
+  async function openFaltantes(){
     document.getElementById('faltantesOverlay').classList.add('open');
-    document.getElementById('faltantesList').style.display='none';
-    document.getElementById('excelInput').value='';
-    document.getElementById('uploadZone').style.display='block';
+    const body=document.getElementById('faltantesBody');
+    body.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:14px">Cargando...</div>';
+    
+    const {data:pasajeros,error}=await db.from('pasajeros').select('*').order('apellido');
+    if(error||!pasajeros||pasajeros.length===0){
+      body.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:14px">No hay listado cargado aún.<br>Usá <strong>Gestionar listado</strong> para subir el Excel.</div>';
+      return;
+    }
+
+    const registrados=allAlumnos.map(a=>({
+      apellido:(a.apellido||'').toLowerCase().trim(),
+      nombre:(a.nombre||'').toLowerCase().trim()
+    }));
+
+    const faltantes=pasajeros.filter(p=>
+      !registrados.some(r=>r.apellido===p.apellido.toLowerCase().trim()&&r.nombre===p.nombre.toLowerCase().trim())
+    );
+
+    if(faltantes.length===0){
+      body.innerHTML=`<div class="presentes-ok">✓ ¡Todos los ${pasajeros.length} pasajeros completaron la ficha!</div>`;
+      return;
+    }
+
+    body.innerHTML=`
+      <div class="faltantes-count">Faltan completar la ficha: <span>${faltantes.length} de ${pasajeros.length}</span> pasajeros</div>
+      ${faltantes.map(f=>`
+        <div class="faltante-item">
+          <div class="dot"></div>
+          <span><strong>${f.apellido}</strong>, ${f.nombre}</span>
+        </div>`).join('')}`;
   }
 
   function closeFaltantes(e){
@@ -247,64 +278,103 @@
       document.getElementById('faltantesOverlay').classList.remove('open');
   }
 
-  async function procesarListado(input){
+  // ── GESTIONAR PASAJEROS ──
+  async function openPasajeros(){
+    document.getElementById('pasajerosOverlay').classList.add('open');
+    document.getElementById('uploadZone').style.display='block';
+    await renderPasajerosList();
+  }
+
+  function closePasajeros(e){
+    if(!e||e.target===document.getElementById('pasajerosOverlay'))
+      document.getElementById('pasajerosOverlay').classList.remove('open');
+  }
+
+  async function renderPasajerosList(){
+    const {data,error}=await db.from('pasajeros').select('*').order('apellido');
+    const el=document.getElementById('pasajerosList');
+    if(error||!data||data.length===0){
+      el.innerHTML='<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px">No hay pasajeros cargados aún.</p>';
+      return;
+    }
+    el.innerHTML=`
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${data.length} pasajeros en el listado</div>
+      ${data.map(p=>`
+        <div class="faltante-item" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="dot" style="background:var(--cyan)"></div>
+            <span><strong>${p.apellido}</strong>, ${p.nombre}</span>
+          </div>
+          <button onclick="askDeletePasajero('${p.id}','${p.apellido} ${p.nombre}')"
+            style="background:none;border:none;color:#444;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;transition:color .15s"
+            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#444'">✕</button>
+        </div>`).join('')}`;
+  }
+
+  async function procesarExcel(input){
     if(!input.files||!input.files[0])return;
     await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const file=input.files[0];
     const reader=new FileReader();
-    reader.onload=function(e){
+    reader.onload=async function(e){
       const data=new Uint8Array(e.target.result);
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      
-      // Skip header row, build list of passengers
-      const pasajeros=rows.slice(1)
-        .filter(r=>r[0]||r[1])
-        .map(r=>({
-          apellido:(r[0]||'').toString().trim().toLowerCase(),
-          nombre:(r[1]||'').toString().trim().toLowerCase(),
-          apellidoOrig:(r[0]||'').toString().trim(),
-          nombreOrig:(r[1]||'').toString().trim()
-        }));
+      const nuevos=rows.slice(1).filter(r=>r[0]||r[1]).map(r=>({
+        apellido:(r[0]||'').toString().trim(),
+        nombre:(r[1]||'').toString().trim()
+      })).filter(r=>r.apellido||r.nombre);
 
-      // Compare against registered students
-      const registrados=allAlumnos.map(a=>({
-        apellido:(a.apellido||'').toLowerCase().trim(),
-        nombre:(a.nombre||'').toLowerCase().trim()
-      }));
+      if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 
-      const faltantes=pasajeros.filter(p=>{
-        return !registrados.some(r=>
-          r.apellido===p.apellido && r.nombre===p.nombre
-        );
-      });
+      // Ask confirm before replacing
+      if(!confirm(`¿Reemplazar el listado actual con ${nuevos.length} pasajeros del Excel?`))return;
 
-      // Render results
-      document.getElementById('uploadZone').style.display='none';
-      const listEl=document.getElementById('faltantesList');
-      listEl.style.display='block';
-
-      if(faltantes.length===0){
-        listEl.innerHTML='<div class="presentes-ok">✓ ¡Todos completaron la ficha!</div>';
-        return;
-      }
-
-      listEl.innerHTML=`
-        <div class="faltantes-count">Faltan completar la ficha: <span>${faltantes.length} de ${pasajeros.length}</span> pasajeros</div>
-        ${faltantes.map(f=>`
-          <div class="faltante-item">
-            <div class="dot"></div>
-            <span><strong>${f.apellidoOrig}</strong>, ${f.nombreOrig}</span>
-          </div>`).join('')}
-        <div style="margin-top:16px;text-align:center">
-          <button onclick="document.getElementById('uploadZone').style.display='block';document.getElementById('faltantesList').style.display='none';document.getElementById('excelInput').value=''"
-            style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:7px 14px;cursor:pointer">
-            Subir otro listado
-          </button>
-        </div>`;
+      // Delete all and re-insert
+      await db.from('pasajeros').delete().neq('id','00000000-0000-0000-0000-000000000000');
+      const {error}=await db.from('pasajeros').insert(nuevos);
+      if(error){alert('Error al guardar: '+error.message);return;}
+      input.value='';
+      await renderPasajerosList();
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  // ── DELETE ALUMNO ──
+  let pendingDeleteId=null;
+  let pendingDeleteType=null;
+
+  function askDeleteAlumno(id,nombre){
+    pendingDeleteId=id;
+    pendingDeleteType='alumno';
+    document.getElementById('confirmMsg').innerHTML=`¿Querés eliminar la ficha de <strong>${nombre}</strong>?<br>Esta acción no se puede deshacer.`;
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function askDeletePasajero(id,nombre){
+    pendingDeleteId=id;
+    pendingDeleteType='pasajero';
+    document.getElementById('confirmMsg').innerHTML=`¿Querés eliminar a <strong>${nombre}</strong> del listado?`;
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function cancelDelete(){
+    pendingDeleteId=null;pendingDeleteType=null;
+    document.getElementById('confirmOverlay').classList.remove('open');
+  }
+
+  async function confirmDelete(){
+    if(!pendingDeleteId)return;
+    if(pendingDeleteType==='alumno'){
+      const {error}=await db.from('alumnos').delete().eq('id',pendingDeleteId);
+      if(error){alert('Error al eliminar: '+error.message);}
+      else{allAlumnos=allAlumnos.filter(a=>a.id!==pendingDeleteId);updateStats();renderTable();}
+    } else {
+      const {error}=await db.from('pasajeros').delete().eq('id',pendingDeleteId);
+      if(!error) await renderPasajerosList();
+    }
+    cancelDelete();
   }
 </script>
 <script>
@@ -421,6 +491,11 @@
             title="Click para cambiar" onclick="toggleCheck('${a.id}',${a.check_completado})">
             ${a.check_completado?'✓':'○'}
           </span>
+        </td>
+        <td>
+          <button onclick="askDeleteAlumno('${a.id}','${a.nombre} ${a.apellido}')"
+            style="background:none;border:none;color:#333;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;transition:color .15s"
+            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>
         </td>
       </tr>`).join('');
   }
@@ -573,11 +648,40 @@
     btn.disabled=false;btn.textContent=labelMap[mode];
   }
 
-  function openFaltantes(){
+
+  // ── FALTANTES ──
+  async function openFaltantes(){
     document.getElementById('faltantesOverlay').classList.add('open');
-    document.getElementById('faltantesList').style.display='none';
-    document.getElementById('excelInput').value='';
-    document.getElementById('uploadZone').style.display='block';
+    const body=document.getElementById('faltantesBody');
+    body.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:14px">Cargando...</div>';
+    
+    const {data:pasajeros,error}=await db.from('pasajeros').select('*').order('apellido');
+    if(error||!pasajeros||pasajeros.length===0){
+      body.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:14px">No hay listado cargado aún.<br>Usá <strong>Gestionar listado</strong> para subir el Excel.</div>';
+      return;
+    }
+
+    const registrados=allAlumnos.map(a=>({
+      apellido:(a.apellido||'').toLowerCase().trim(),
+      nombre:(a.nombre||'').toLowerCase().trim()
+    }));
+
+    const faltantes=pasajeros.filter(p=>
+      !registrados.some(r=>r.apellido===p.apellido.toLowerCase().trim()&&r.nombre===p.nombre.toLowerCase().trim())
+    );
+
+    if(faltantes.length===0){
+      body.innerHTML=`<div class="presentes-ok">✓ ¡Todos los ${pasajeros.length} pasajeros completaron la ficha!</div>`;
+      return;
+    }
+
+    body.innerHTML=`
+      <div class="faltantes-count">Faltan completar la ficha: <span>${faltantes.length} de ${pasajeros.length}</span> pasajeros</div>
+      ${faltantes.map(f=>`
+        <div class="faltante-item">
+          <div class="dot"></div>
+          <span><strong>${f.apellido}</strong>, ${f.nombre}</span>
+        </div>`).join('')}`;
   }
 
   function closeFaltantes(e){
@@ -585,64 +689,103 @@
       document.getElementById('faltantesOverlay').classList.remove('open');
   }
 
-  async function procesarListado(input){
+  // ── GESTIONAR PASAJEROS ──
+  async function openPasajeros(){
+    document.getElementById('pasajerosOverlay').classList.add('open');
+    document.getElementById('uploadZone').style.display='block';
+    await renderPasajerosList();
+  }
+
+  function closePasajeros(e){
+    if(!e||e.target===document.getElementById('pasajerosOverlay'))
+      document.getElementById('pasajerosOverlay').classList.remove('open');
+  }
+
+  async function renderPasajerosList(){
+    const {data,error}=await db.from('pasajeros').select('*').order('apellido');
+    const el=document.getElementById('pasajerosList');
+    if(error||!data||data.length===0){
+      el.innerHTML='<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:8px">No hay pasajeros cargados aún.</p>';
+      return;
+    }
+    el.innerHTML=`
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${data.length} pasajeros en el listado</div>
+      ${data.map(p=>`
+        <div class="faltante-item" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="dot" style="background:var(--cyan)"></div>
+            <span><strong>${p.apellido}</strong>, ${p.nombre}</span>
+          </div>
+          <button onclick="askDeletePasajero('${p.id}','${p.apellido} ${p.nombre}')"
+            style="background:none;border:none;color:#444;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;transition:color .15s"
+            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#444'">✕</button>
+        </div>`).join('')}`;
+  }
+
+  async function procesarExcel(input){
     if(!input.files||!input.files[0])return;
     await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
     const file=input.files[0];
     const reader=new FileReader();
-    reader.onload=function(e){
+    reader.onload=async function(e){
       const data=new Uint8Array(e.target.result);
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      
-      // Skip header row, build list of passengers
-      const pasajeros=rows.slice(1)
-        .filter(r=>r[0]||r[1])
-        .map(r=>({
-          apellido:(r[0]||'').toString().trim().toLowerCase(),
-          nombre:(r[1]||'').toString().trim().toLowerCase(),
-          apellidoOrig:(r[0]||'').toString().trim(),
-          nombreOrig:(r[1]||'').toString().trim()
-        }));
+      const nuevos=rows.slice(1).filter(r=>r[0]||r[1]).map(r=>({
+        apellido:(r[0]||'').toString().trim(),
+        nombre:(r[1]||'').toString().trim()
+      })).filter(r=>r.apellido||r.nombre);
 
-      // Compare against registered students
-      const registrados=allAlumnos.map(a=>({
-        apellido:(a.apellido||'').toLowerCase().trim(),
-        nombre:(a.nombre||'').toLowerCase().trim()
-      }));
+      if(nuevos.length===0){alert('No se encontraron datos en el archivo.');return;}
 
-      const faltantes=pasajeros.filter(p=>{
-        return !registrados.some(r=>
-          r.apellido===p.apellido && r.nombre===p.nombre
-        );
-      });
+      // Ask confirm before replacing
+      if(!confirm(`¿Reemplazar el listado actual con ${nuevos.length} pasajeros del Excel?`))return;
 
-      // Render results
-      document.getElementById('uploadZone').style.display='none';
-      const listEl=document.getElementById('faltantesList');
-      listEl.style.display='block';
-
-      if(faltantes.length===0){
-        listEl.innerHTML='<div class="presentes-ok">✓ ¡Todos completaron la ficha!</div>';
-        return;
-      }
-
-      listEl.innerHTML=`
-        <div class="faltantes-count">Faltan completar la ficha: <span>${faltantes.length} de ${pasajeros.length}</span> pasajeros</div>
-        ${faltantes.map(f=>`
-          <div class="faltante-item">
-            <div class="dot"></div>
-            <span><strong>${f.apellidoOrig}</strong>, ${f.nombreOrig}</span>
-          </div>`).join('')}
-        <div style="margin-top:16px;text-align:center">
-          <button onclick="document.getElementById('uploadZone').style.display='block';document.getElementById('faltantesList').style.display='none';document.getElementById('excelInput').value=''"
-            style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:7px 14px;cursor:pointer">
-            Subir otro listado
-          </button>
-        </div>`;
+      // Delete all and re-insert
+      await db.from('pasajeros').delete().neq('id','00000000-0000-0000-0000-000000000000');
+      const {error}=await db.from('pasajeros').insert(nuevos);
+      if(error){alert('Error al guardar: '+error.message);return;}
+      input.value='';
+      await renderPasajerosList();
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  // ── DELETE ALUMNO ──
+  let pendingDeleteId=null;
+  let pendingDeleteType=null;
+
+  function askDeleteAlumno(id,nombre){
+    pendingDeleteId=id;
+    pendingDeleteType='alumno';
+    document.getElementById('confirmMsg').innerHTML=`¿Querés eliminar la ficha de <strong>${nombre}</strong>?<br>Esta acción no se puede deshacer.`;
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function askDeletePasajero(id,nombre){
+    pendingDeleteId=id;
+    pendingDeleteType='pasajero';
+    document.getElementById('confirmMsg').innerHTML=`¿Querés eliminar a <strong>${nombre}</strong> del listado?`;
+    document.getElementById('confirmOverlay').classList.add('open');
+  }
+
+  function cancelDelete(){
+    pendingDeleteId=null;pendingDeleteType=null;
+    document.getElementById('confirmOverlay').classList.remove('open');
+  }
+
+  async function confirmDelete(){
+    if(!pendingDeleteId)return;
+    if(pendingDeleteType==='alumno'){
+      const {error}=await db.from('alumnos').delete().eq('id',pendingDeleteId);
+      if(error){alert('Error al eliminar: '+error.message);}
+      else{allAlumnos=allAlumnos.filter(a=>a.id!==pendingDeleteId);updateStats();renderTable();}
+    } else {
+      const {error}=await db.from('pasajeros').delete().eq('id',pendingDeleteId);
+      if(!error) await renderPasajerosList();
+    }
+    cancelDelete();
   }
 </script>
 
@@ -650,16 +793,45 @@
 <div class="overlay" id="faltantesOverlay" onclick="closeFaltantes(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <h2>Alumnos que no completaron la ficha</h2>
+      <h2>👥 Faltantes</h2>
       <button class="modal-close" onclick="closeFaltantes()">✕</button>
+    </div>
+    <div class="modal-body" id="faltantesBody">
+      <div style="text-align:center;color:var(--muted);padding:20px;font-size:14px">Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Gestionar pasajeros modal -->
+<div class="overlay" id="pasajerosOverlay" onclick="closePasajeros(event)">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-header">
+      <h2>📋 Listado de pasajeros</h2>
+      <button class="modal-close" onclick="closePasajeros()">✕</button>
     </div>
     <div class="modal-body">
       <div class="upload-zone" id="uploadZone">
-        <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="procesarListado(this)">
-        <div class="icon">📋</div>
-        <p>Subí el Excel con el listado de pasajeros<br><span style="font-size:11px;color:#444">Columna A: Apellido &nbsp;·&nbsp; Columna B: Nombre &nbsp;·&nbsp; Con encabezado</span></p>
+        <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="procesarExcel(this)">
+        <div class="icon">📂</div>
+        <p>Subí el Excel para cargar o reemplazar el listado<br><span style="font-size:11px;color:#444">Columna A: Apellido &nbsp;·&nbsp; Columna B: Nombre &nbsp;·&nbsp; Con encabezado</span></p>
       </div>
-      <div class="faltantes-list" id="faltantesList" style="display:none"></div>
+      <div id="pasajerosList" style="margin-top:16px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header">
+      <h2>⚠️ Confirmar eliminación</h2>
+    </div>
+    <div class="modal-body">
+      <p id="confirmMsg" style="font-size:14px;color:var(--muted);margin-bottom:20px;line-height:1.6"></p>
+      <div style="display:flex;gap:10px">
+        <button onclick="cancelDelete()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px;cursor:pointer">Cancelar</button>
+        <button onclick="confirmDelete()" style="flex:1;background:var(--pink);border:none;border-radius:10px;color:#fff;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;padding:11px;cursor:pointer">Sí, eliminar</button>
+      </div>
     </div>
   </div>
 </div>

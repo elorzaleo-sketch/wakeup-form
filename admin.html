@@ -309,16 +309,16 @@
         <td><strong>${a.apellido||'—'}</strong></td>
         <td>${a.nombre||'—'}</td>
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
-        <td><select class="obs-input" style="width:120px" onchange="saveField('${a.id}','colegio',this.value)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
-        <td><select class="obs-input" style="width:60px" onchange="saveField('${a.id}','edad',this.value)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
+        <td><select class="obs-input" style="width:120px" onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
+        <td><select class="obs-input" style="width:60px" onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
         <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
-            onblur="saveField('${a.id}','obs_salud',this.value)">
+            onblur="saveField('${a.id}','obs_salud',this.value,this)">
         </td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin restricciones" value="${a.obs_dieta||''}"
-            onblur="saveField('${a.id}','obs_dieta',this.value)">
+            onblur="saveField('${a.id}','obs_dieta',this.value,this)">
         </td>
         <td>
           <span class="${a.check_completado?'check-done':'check-pending'}"
@@ -329,13 +329,19 @@
       </tr>`).join('');
   }
 
-  async function saveField(id,field,value){
+  async function saveField(id,field,value,el){
+    if(el){el.style.borderColor='var(--cyan)';el.title='Guardando...';}
     const update={};update[field]=value||null;
     const {error}=await db.from('alumnos').update(update).eq('id',id);
-    if(!error){
+    if(error){
+      console.error('Error guardando '+field+':', JSON.stringify(error));
+      if(el){el.style.borderColor='var(--pink)';el.title='Error: '+error.message;}
+      alert('Error al guardar: '+error.message);
+    } else {
       const a=allAlumnos.find(x=>x.id===id);
       if(a){a[field]=value||null;}
       updateStats();
+      if(el){el.style.borderColor='var(--green)';el.title='Guardado';setTimeout(()=>{el.style.borderColor='var(--border)';el.title='';},1500);}
     }
   }
 

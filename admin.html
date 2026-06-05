@@ -209,7 +209,7 @@
       <button class="export-obs-btn" onclick="exportDocx('obs')" id="exportObsBtn">⬇ Observaciones</button>
       <button class="export-obs-btn" onclick="exportDocx('padres')" id="exportPadresBtn" style="border-color:var(--green);color:var(--green)">⬇ Datos de padres</button>
       <button class="faltantes-btn" onclick="openFaltantes()">👥 Ver faltantes</button>
-      <button class="faltantes-btn" onclick="openPasajeros()" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
+      <button class="faltantes-btn" onclick="openPasajeros()" id="gestionarBtn" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
     </div>
 
     <div class="table-wrap">
@@ -394,6 +394,8 @@
   const SUPABASE_URL='https://mzousqdahqterfawhwsz.supabase.co';
   const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16b3VzcWRhaHF0ZXJmYXdod3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTc4MzUsImV4cCI6MjA5NjA5MzgzNX0.EdSlcRdLD75OdYlwtZGLVgL_PGpJysWb_MKvuwGgj5Y';
   const PASSWORD='Wakeupadmin26!';
+  const PASSWORD_READONLY='Wakeupcoordi!';
+  let isReadOnly=false;
   const {createClient}=supabase;
   const db=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
   let allAlumnos=[];
@@ -401,14 +403,28 @@
   let sortDir='asc';
 
   function doLogin(){
-    if(document.getElementById('passwordInput').value===PASSWORD){
+    const val=document.getElementById('passwordInput').value;
+    if(val===PASSWORD||val===PASSWORD_READONLY){
+      isReadOnly=(val===PASSWORD_READONLY);
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('adminScreen').style.display='block';
+      applyReadOnlyMode();
       loadAlumnos();
       autoRefreshInterval=setInterval(recargarDatos,60000);
     } else {
       document.getElementById('loginError').style.display='block';
     }
+  }
+
+  function applyReadOnlyMode(){
+    if(!isReadOnly)return;
+    // Hide edit-only buttons
+    const gb=document.getElementById('gestionarBtn');if(gb)gb.style.display='none';
+    // Add readonly badge to topbar
+    const badge=document.createElement('span');
+    badge.textContent='Solo lectura';
+    badge.style.cssText='font-size:11px;background:rgba(241,29,140,0.15);color:var(--pink);border-radius:6px;padding:3px 10px;font-weight:500;';
+    document.querySelector('.topbar-right').prepend(badge);
   }
 
   function doLogout(){
@@ -499,16 +515,16 @@
         <td><strong>${a.apellido||'—'}</strong></td>
         <td>${a.nombre||'—'}</td>
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
-        <td><select class="obs-input" style="width:120px" onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
-        <td><select class="obs-input" style="width:60px" onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
+        <td><select class="obs-input" style="width:120px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
+        <td><select class="obs-input" style="width:60px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
         <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
-            onblur="saveField('${a.id}','obs_salud',this.value,this)">
+            ${isReadOnly?'readonly style="cursor:default;color:var(--muted)"':'onblur="saveField(''+a.id+'','obs_salud',this.value,this)"'}>
         </td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin restricciones" value="${a.obs_dieta||''}"
-            onblur="saveField('${a.id}','obs_dieta',this.value,this)">
+            ${isReadOnly?'readonly style="cursor:default;color:var(--muted)"':'onblur="saveField(''+a.id+'','obs_dieta',this.value,this)"'}>
         </td>
         <td>
           <span class="${a.check_completado?'check-done':'check-pending'}"
@@ -517,9 +533,9 @@
           </span>
         </td>
         <td>
-          <button onclick="askDeleteAlumno('${a.id}','${a.nombre} ${a.apellido}')"
+          ${!isReadOnly?`<button onclick="askDeleteAlumno('${a.id}','${a.nombre} ${a.apellido}')"
             style="background:none;border:none;color:#333;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;transition:color .15s"
-            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>
+            onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>`:''}
         </td>
       </tr>`).join('');
   }

@@ -223,6 +223,9 @@
           <th class="sortable" onclick="sortBy('colegio')">Colegio</th>
           <th class="sortable" onclick="sortBy('edad')">Edad</th>
           <th>Playlist</th>
+          <th>Pantalón</th>
+          <th>Campera</th>
+          <th>Bota</th>
           <th>Obs. médicas</th>
           <th>Dieta</th>
           <th>Revisado ✓</th>
@@ -518,6 +521,9 @@
         <td><select class="obs-input" style="width:120px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
         <td><select class="obs-input" style="width:60px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
         <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
+        <td style="font-size:13px;text-align:center">${a.talle_pantalon||'—'}</td>
+        <td style="font-size:13px;text-align:center">${a.talle_campera||'—'}</td>
+        <td style="font-size:13px;text-align:center">${a.talle_bota||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
             id="obs_salud_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_salud',this.value,this)" ${isReadOnly?'readonly':''}>
@@ -617,9 +623,9 @@
 
       // Column config per mode
       const configs={
-        fichas:{colWidths:[1700,1700,1500,1900,1200],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Foto']},
-        obs:   {colWidths:[1300,1300,1000,1300,1300,1300,1500],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Obs. médicas','Dieta','Foto']},
-        padres:{colWidths:[1300,1300,1400,1800,1700,1800],headers:['Apellido','Nombre completo','Colegio','Nombre padre','Tel. padre','Nombre madre']}
+        fichas:{colWidths:[1400,1400,1200,1500,900,900,900,1300],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Pantalón','Campera','Bota','Foto']},
+        obs:   {colWidths:[1100,1100,900,1200,800,800,800,1200,1200,1100],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Pantalón','Campera','Bota','Obs. médicas','Dieta','Foto']},
+        padres:{colWidths:[1200,1200,1300,900,900,900,1500,1600,1500],headers:['Apellido','Nombre completo','Colegio','Pantalón','Campera','Bota','Nombre padre','Tel. padre','Nombre madre']}
       };
       const {colWidths,headers}=configs[mode];
 
@@ -649,18 +655,20 @@
       const dataRows=filtered.map(a=>{
         const buf=imgMap[a.id];
         if(mode==='fichas'){
-          return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),mkPhotoCell(buf,4)]});
+          return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),mkCell(a.talle_pantalon,4),mkCell(a.talle_campera,5),mkCell(a.talle_bota,6),mkPhotoCell(buf,7)]});
         }
         if(mode==='obs'){
           return new TableRow({children:[
             mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),
-            mkCell(a.obs_salud,4,'CC0000'),mkCell(a.obs_dieta,5,'996600'),mkPhotoCell(buf,6)
+            mkCell(a.talle_pantalon,4),mkCell(a.talle_campera,5),mkCell(a.talle_bota,6),
+            mkCell(a.obs_salud,7,'CC0000'),mkCell(a.obs_dieta,8,'996600'),mkPhotoCell(buf,9)
           ]});
         }
         if(mode==='padres'){
           return new TableRow({children:[
             mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.colegio,2),
-            mkCell(a.nombre_padre,3),mkCell(a.telefono_padre,4),mkCell(a.nombre_madre,5)
+            mkCell(a.talle_pantalon,3),mkCell(a.talle_campera,4),mkCell(a.talle_bota,5),
+            mkCell(a.nombre_padre,6),mkCell(a.telefono_padre,7),mkCell(a.nombre_madre,8)
           ]});
         }
       });

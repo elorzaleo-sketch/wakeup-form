@@ -123,6 +123,10 @@
   .faltante-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-radius:10px;margin-bottom:8px;font-size:14px;}
   .faltante-item .dot{width:8px;height:8px;border-radius:50%;background:var(--pink);flex-shrink:0;}
   .presentes-ok{text-align:center;padding:20px;color:var(--green);font-size:14px;}
+  .toggle-cols{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .col-toggle{background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 12px;cursor:pointer;transition:all .15s;user-select:none;}
+  .col-toggle.hidden{background:transparent;border-color:#333;color:#444;text-decoration:line-through;}
+  .col-toggle:hover{border-color:var(--cyan);color:var(--cyan);}
   @media(max-width:700px){.main{padding:16px;}.topbar{padding:10px 16px;}.sort-btn{display:none;}}
 </style>
 </head>
@@ -212,22 +216,30 @@
       <button class="faltantes-btn" onclick="openPasajeros()" id="gestionarBtn" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
     </div>
 
+    <div class="toggle-cols">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Columnas:</span>
+      <span class="col-toggle" onclick="toggleCol('playlist',this)">Playlist</span>
+      <span class="col-toggle" onclick="toggleCol('pantalon',this)">Pantalón</span>
+      <span class="col-toggle" onclick="toggleCol('campera',this)">Campera</span>
+      <span class="col-toggle" onclick="toggleCol('bota',this)">Bota</span>
+    </div>
     <div class="table-wrap">
       <div class="loading" id="loadingState">Cargando alumnos...</div>
       <table id="alumnosTable" style="display:none">
         <thead><tr>
           <th>Foto</th>
           <th class="sortable" onclick="sortBy('apellido')">Apellido</th>
-          <th class="sortable" onclick="sortBy('nombre')">Nombre completo</th>
-          <th class="sortable" onclick="sortBy('apodo')">Nombre preferido</th>
+          <th class="sortable" onclick="sortBy('nombre')">Nombre</th>
+          <th class="sortable" onclick="sortBy('apodo')">N. Pref.</th>
           <th class="sortable" onclick="sortBy('colegio')">Colegio</th>
           <th class="sortable" onclick="sortBy('edad')">Edad</th>
-          <th>Playlist</th>
-          <th>Pantalón</th>
-          <th>Campera</th>
-          <th>Bota</th>
+          <th data-col="playlist">Playlist</th>
+          <th data-col="pantalon">Pantalón</th>
+          <th data-col="campera">Campera</th>
+          <th data-col="bota">Bota</th>
           <th>Obs. médicas</th>
           <th>Dieta</th>
+          <th>Observaciones</th>
           <th>Revisado ✓</th>
           <th></th>
         </tr></thead>
@@ -520,10 +532,10 @@
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
         <td><select class="obs-input" style="width:120px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
         <td><select class="obs-input" style="width:60px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
-        <td style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
-        <td style="font-size:13px;text-align:center">${a.talle_pantalon||'—'}</td>
-        <td style="font-size:13px;text-align:center">${a.talle_campera||'—'}</td>
-        <td style="font-size:13px;text-align:center">${a.talle_bota||'—'}</td>
+        <td data-col="playlist" style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
+        <td data-col="pantalon" style="font-size:13px;text-align:center">${a.talle_pantalon||'—'}</td>
+        <td data-col="campera" style="font-size:13px;text-align:center">${a.talle_campera||'—'}</td>
+        <td data-col="bota" style="font-size:13px;text-align:center">${a.talle_bota||'—'}</td>
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin observaciones" value="${a.obs_salud||''}"
             id="obs_salud_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_salud',this.value,this)" ${isReadOnly?'readonly':''}>
@@ -531,6 +543,10 @@
         <td class="obs-cell">
           <input class="obs-input" placeholder="Sin restricciones" value="${a.obs_dieta||''}"
             id="obs_dieta_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_dieta',this.value,this)" ${isReadOnly?'readonly':''}>
+        </td>
+        <td class="obs-cell">
+          <input class="obs-input" placeholder="—" value="${a.obs_general||''}"
+            id="obs_general_${a.id}" onblur="if(!isReadOnly)saveField('${a.id}','obs_general',this.value,this)" ${isReadOnly?'readonly':''}>
         </td>
         <td>
           <span class="${a.check_completado?'check-done':'check-pending'}"
@@ -577,6 +593,22 @@
   // ── EXPORT ──
   async function imgToArrayBuffer(url){
     try{const r=await fetch(url);return await r.arrayBuffer();}catch{return null;}
+  }
+
+  const hiddenCols=new Set();
+
+  function toggleCol(col, btn){
+    if(hiddenCols.has(col)){
+      hiddenCols.delete(col);
+      btn.classList.remove('hidden');
+    } else {
+      hiddenCols.add(col);
+      btn.classList.add('hidden');
+    }
+    // Show/hide th and td with data-col
+    document.querySelectorAll('[data-col="'+col+'"]').forEach(el=>{
+      el.style.display=hiddenCols.has(col)?'none':'';
+    });
   }
 
   function loadScript(src){

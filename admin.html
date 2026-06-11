@@ -533,8 +533,10 @@
           ?`<img class="student-photo" src="${a.foto_url}" alt="${a.nombre}" onclick="openModal('${a.foto_url}','${(a.nombre||'')} ${(a.apellido||'')}')">`
           :`<div class="no-photo">👤</div>`}
         </td>
-        <td><strong>${a.apellido||'—'}</strong></td>
-        <td>${a.nombre||'—'}</td>
+        <td><input class="obs-input" style="font-weight:700;width:100%;min-width:100px" value="${toTC(a.apellido)}"
+            onblur="if(!isReadOnly)saveFieldTC('${a.id}','apellido',this.value,this)" ${isReadOnly?'readonly':''}></td>
+        <td><input class="obs-input" style="width:100%;min-width:120px" value="${toTC(a.nombre)}"
+            onblur="if(!isReadOnly)saveFieldTC('${a.id}','nombre',this.value,this)" ${isReadOnly?'readonly':''}></td>
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
         <td><select class="obs-input" style="width:120px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
         <td><select class="obs-input" style="width:60px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
@@ -565,6 +567,17 @@
           ${isReadOnly?'':`<button onclick="askDeleteAlumno('`+a.id+`','`+a.nombre+` `+a.apellido+`')" style="background:none;border:none;color:#333;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='#333'">🗑</button>`}
         </td>
       </tr>`).join('');
+  }
+
+  const toTC = s => (s||'').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+  async function saveFieldTC(id, field, value, el){
+    const normalized = toTC(value.trim());
+    if(el) el.value = normalized; // update input visually
+    await saveField(id, field, normalized, el);
+    // Also update allAlumnos
+    const a = allAlumnos.find(x => x.id === id);
+    if(a) a[field] = normalized;
   }
 
   async function saveField(id,field,value,el){

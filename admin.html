@@ -217,6 +217,7 @@
       <button class="export-obs-btn" onclick="exportDocx('obs')" id="exportObsBtn">⬇ Observaciones</button>
       <button class="export-obs-btn" onclick="exportDocx('padres')" id="exportPadresBtn" style="border-color:var(--green);color:var(--green)">⬇ Datos de padres</button>
       <button class="export-obs-btn" onclick="exportExcel()" id="exportXlsBtn" style="border-color:#1d6f42;color:#1d6f42">⬇ Excel completo</button>
+      <button class="export-obs-btn" onclick="exportExcelRopa()" id="exportRopaBtn" style="border-color:#1d6f42;color:#1d6f42">⬇ Excel ropa</button>
       <button class="faltantes-btn" onclick="openFaltantes()">👥 Ver faltantes</button>
       <button class="faltantes-btn" onclick="openPasajeros()" id="gestionarBtn" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
     </div>
@@ -224,9 +225,7 @@
     <div class="toggle-cols">
       <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Columnas:</span>
       <span class="col-toggle" onclick="toggleCol('playlist',this)">Playlist</span>
-      <span class="col-toggle" onclick="toggleCol('pantalon',this)">Pantalón</span>
-      <span class="col-toggle" onclick="toggleCol('campera',this)">Campera</span>
-      <span class="col-toggle" onclick="toggleCol('bota',this)">Bota</span>
+      <span class="col-toggle" onclick="toggleColGroup(['pantalon','campera','bota'],this)">Ropa</span>
     </div>
     <div class="table-wrap">
       <div class="loading" id="loadingState">Cargando alumnos...</div>
@@ -617,6 +616,52 @@
     try{const r=await fetch(url);return await r.arrayBuffer();}catch{return null;}
   }
 
+  function applyExcelStyles(ws, headers, rowCount, colWidths){
+    // Header style - dark background, cyan text
+    const headerStyle = {
+      font: { bold: true, color: { rgb: '5DB4C9' }, name: 'Arial', sz: 11 },
+      fill: { fgColor: { rgb: '0D0D0D' }, patternType: 'solid' },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        top:    { style: 'thin', color: { rgb: '5DB4C9' } },
+        bottom: { style: 'thin', color: { rgb: '5DB4C9' } },
+        left:   { style: 'thin', color: { rgb: '5DB4C9' } },
+        right:  { style: 'thin', color: { rgb: '5DB4C9' } }
+      }
+    };
+    const rowStyleEven = {
+      font: { name: 'Arial', sz: 10 },
+      fill: { fgColor: { rgb: 'F7F7F7' }, patternType: 'solid' },
+      border: { top: { style: 'thin', color: { rgb: 'DDDDDD' } }, bottom: { style: 'thin', color: { rgb: 'DDDDDD' } }, left: { style: 'thin', color: { rgb: 'DDDDDD' } }, right: { style: 'thin', color: { rgb: 'DDDDDD' } } },
+      alignment: { vertical: 'center' }
+    };
+    const rowStyleOdd = {
+      font: { name: 'Arial', sz: 10 },
+      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' },
+      border: { top: { style: 'thin', color: { rgb: 'DDDDDD' } }, bottom: { style: 'thin', color: { rgb: 'DDDDDD' } }, left: { style: 'thin', color: { rgb: 'DDDDDD' } }, right: { style: 'thin', color: { rgb: 'DDDDDD' } } },
+      alignment: { vertical: 'center' }
+    };
+
+    // Apply header styles
+    for(let c=0; c<headers.length; c++){
+      const cell = XLSX.utils.encode_cell({r:0, c});
+      if(ws[cell]) ws[cell].s = headerStyle;
+    }
+    // Apply row styles
+    for(let r=1; r<=rowCount; r++){
+      for(let c=0; c<headers.length; c++){
+        const cell = XLSX.utils.encode_cell({r, c});
+        if(!ws[cell]) ws[cell] = {v:'', t:'s'};
+        ws[cell].s = r % 2 === 0 ? rowStyleEven : rowStyleOdd;
+      }
+    }
+    // Row height
+    ws['!rows'] = [{hpt:22}];
+    for(let r=1; r<=rowCount; r++) ws['!rows'].push({hpt:18});
+    // Col widths
+    ws['!cols'] = colWidths;
+  }
+
   async function exportExcel(){
     const btn=document.getElementById('exportXlsBtn');
     btn.disabled=true; btn.textContent='Generando Excel...';
@@ -626,29 +671,26 @@
       const today=new Date().toLocaleDateString('es-AR');
 
       const headers=['Apellido','Nombre completo','N. Pref.','Sexo','Edad','Colegio',
-                     'Fun fact','Playlist','Pantalón','Campera','Bota',
+                     'Playlist','Pantalón','Campera','Bota',
                      'Obs. médicas','Dieta','Observaciones',
-                     'Nombre padre','Tel. padre','Nombre madre','Tel. madre',
-                     'Foto URL','Revisado'];
+                     'Nombre padre','Tel. padre','Nombre madre','Tel. madre','Revisado'];
 
       const rows=filtered.map(a=>[
         a.apellido||'',a.nombre||'',a.apodo||'',a.sexo||'',a.edad||'',a.colegio||'',
-        a.fun_fact||'',a.playlist||'',a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
+        a.playlist||'',a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
         a.obs_salud||'',a.obs_dieta||'',a.obs_general||'',
         a.nombre_padre||'',a.telefono_padre||'',a.nombre_madre||'',a.telefono_madre||'',
-        a.foto_url||'',a.check_completado?'Sí':'No'
+        a.check_completado?'Sí':'No'
       ]);
+
+      const colWidths=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:6},{wch:18},
+                       {wch:24},{wch:10},{wch:10},{wch:6},
+                       {wch:24},{wch:20},{wch:24},
+                       {wch:22},{wch:14},{wch:22},{wch:14},{wch:10}];
 
       const wb=XLSX.utils.book_new();
       const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-
-      // Column widths
-      ws['!cols']=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:6},{wch:18},
-                   {wch:30},{wch:24},{wch:10},{wch:10},{wch:6},
-                   {wch:24},{wch:20},{wch:24},
-                   {wch:22},{wch:16},{wch:22},{wch:16},
-                   {wch:40},{wch:10}];
-
+      applyExcelStyles(ws, headers, rows.length, colWidths);
       XLSX.utils.book_append_sheet(wb,ws,'Alumnos');
       XLSX.writeFile(wb,'wakeup-alumnos-'+today.replace(/\//g,'-')+'.xlsx');
     } catch(err){
@@ -657,7 +699,51 @@
     btn.disabled=false; btn.textContent='⬇ Excel completo';
   }
 
+  async function exportExcelRopa(){
+    const btn=document.getElementById('exportRopaBtn');
+    btn.disabled=true; btn.textContent='Generando...';
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      const filtered=getFiltered();
+      const today=new Date().toLocaleDateString('es-AR');
+
+      const headers=['Apellido','Nombre completo','Sexo','Edad','Colegio','Pantalón','Campera','Bota','Observaciones'];
+      const rows=filtered.map(a=>[
+        a.apellido||'',a.nombre||'',a.sexo||'',a.edad||'',a.colegio||'',
+        a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
+        a.obs_general||''
+      ]);
+
+      const colWidths=[{wch:16},{wch:22},{wch:14},{wch:6},{wch:18},{wch:10},{wch:10},{wch:6},{wch:24}];
+
+      const wb=XLSX.utils.book_new();
+      const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+      applyExcelStyles(ws, headers, rows.length, colWidths);
+      XLSX.utils.book_append_sheet(wb,ws,'Ropa');
+      XLSX.writeFile(wb,'wakeup-ropa-'+today.replace(/\//g,'-')+'.xlsx');
+    } catch(err){
+      console.error(err); alert('Error al generar Excel: '+err.message);
+    }
+    btn.disabled=false; btn.textContent='⬇ Excel ropa';
+  }
+
   const hiddenCols=new Set();
+
+  function toggleColGroup(cols, btn){
+    const allHidden = cols.every(c => hiddenCols.has(c));
+    if(allHidden){
+      cols.forEach(c => hiddenCols.delete(c));
+      btn.classList.remove('hidden');
+    } else {
+      cols.forEach(c => hiddenCols.add(c));
+      btn.classList.add('hidden');
+    }
+    cols.forEach(col => {
+      document.querySelectorAll('[data-col="'+col+'"]').forEach(el => {
+        el.style.display = hiddenCols.has(col) ? 'none' : '';
+      });
+    });
+  }
 
   function toggleCol(col, btn){
     if(hiddenCols.has(col)){

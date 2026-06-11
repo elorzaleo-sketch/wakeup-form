@@ -209,9 +209,14 @@
         <option>Berazategui</option><option>El Encuentro</option><option>Emanuel</option>
         <option>Hay Vida En Jesús</option><option>M. T Alvear</option><option>Menoyo</option><option>Zion</option>
       </select>
+      <select id="sexoFilter" class="ctrl" onchange="renderTable()">
+        <option value="">Todos los sexos</option>
+        <option>Masculino</option><option>Femenino</option><option>Prefiero no responder</option>
+      </select>
       <button class="export-btn" onclick="exportDocx('fichas')" id="exportBtn">⬇ Fichas + fotos</button>
       <button class="export-obs-btn" onclick="exportDocx('obs')" id="exportObsBtn">⬇ Observaciones</button>
       <button class="export-obs-btn" onclick="exportDocx('padres')" id="exportPadresBtn" style="border-color:var(--green);color:var(--green)">⬇ Datos de padres</button>
+      <button class="export-obs-btn" onclick="exportExcel()" id="exportXlsBtn" style="border-color:#1d6f42;color:#1d6f42">⬇ Excel completo</button>
       <button class="faltantes-btn" onclick="openFaltantes()">👥 Ver faltantes</button>
       <button class="faltantes-btn" onclick="openPasajeros()" id="gestionarBtn" style="border-color:var(--cyan);color:var(--cyan)">📋 Gestionar listado</button>
     </div>
@@ -233,6 +238,7 @@
           <th class="sortable" onclick="sortBy('apodo')">N. Pref.</th>
           <th class="sortable" onclick="sortBy('colegio')">Colegio</th>
           <th class="sortable" onclick="sortBy('edad')">Edad</th>
+          <th class="sortable" onclick="sortBy('sexo')">Sexo</th>
           <th data-col="playlist">Playlist</th>
           <th data-col="pantalon">Pantalón</th>
           <th data-col="campera">Campera</th>
@@ -504,7 +510,8 @@
     let result=allAlumnos.filter(a=>{
       const ms=!search||(a.nombre||'').toLowerCase().includes(search)||(a.apellido||'').toLowerCase().includes(search);
       const mc=!colegio||a.colegio===colegio;
-      return ms&&mc;
+      const msexo=!document.getElementById('sexoFilter').value||a.sexo===document.getElementById('sexoFilter').value;
+      return ms&&mc&&msexo;
     });
     result.sort((a,b)=>{
       const va=(a[sortField]||'').toString().toLowerCase();
@@ -532,6 +539,7 @@
         <td style="color:var(--muted)">${a.apodo||'—'}</td>
         <td><select class="obs-input" style="width:120px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','colegio',this.value,this)"><option value=''>—</option><option ${a.colegio==='Berazategui'?'selected':''}>Berazategui</option><option ${a.colegio==='El Encuentro'?'selected':''}>El Encuentro</option><option ${a.colegio==='Emanuel'?'selected':''}>Emanuel</option><option ${a.colegio==='Hay Vida En Jesús'?'selected':''}>Hay Vida En Jesús</option><option ${a.colegio==='M. T Alvear'?'selected':''}>M. T Alvear</option><option ${a.colegio==='Menoyo'?'selected':''}>Menoyo</option><option ${a.colegio==='Zion'?'selected':''}>Zion</option></select></td>
         <td><select class="obs-input" style="width:60px" ${isReadOnly?'disabled':''} onchange="saveField('${a.id}','edad',this.value,this)"><option value=''>—</option><option ${a.edad==='17'?'selected':''}>17</option><option ${a.edad==='18'?'selected':''}>18</option><option ${a.edad==='19'?'selected':''}>19</option></select></td>
+        <td style="font-size:12px;color:var(--muted)">${a.sexo||'—'}</td>
         <td data-col="playlist" style="color:var(--muted);font-size:12px">${a.playlist||'—'}</td>
         <td data-col="pantalon" style="font-size:13px;text-align:center">${a.talle_pantalon||'—'}</td>
         <td data-col="campera" style="font-size:13px;text-align:center">${a.talle_campera||'—'}</td>
@@ -609,6 +617,46 @@
     try{const r=await fetch(url);return await r.arrayBuffer();}catch{return null;}
   }
 
+  async function exportExcel(){
+    const btn=document.getElementById('exportXlsBtn');
+    btn.disabled=true; btn.textContent='Generando Excel...';
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      const filtered=getFiltered();
+      const today=new Date().toLocaleDateString('es-AR');
+
+      const headers=['Apellido','Nombre completo','N. Pref.','Sexo','Edad','Colegio',
+                     'Fun fact','Playlist','Pantalón','Campera','Bota',
+                     'Obs. médicas','Dieta','Observaciones',
+                     'Nombre padre','Tel. padre','Nombre madre','Tel. madre',
+                     'Foto URL','Revisado'];
+
+      const rows=filtered.map(a=>[
+        a.apellido||'',a.nombre||'',a.apodo||'',a.sexo||'',a.edad||'',a.colegio||'',
+        a.fun_fact||'',a.playlist||'',a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
+        a.obs_salud||'',a.obs_dieta||'',a.obs_general||'',
+        a.nombre_padre||'',a.telefono_padre||'',a.nombre_madre||'',a.telefono_madre||'',
+        a.foto_url||'',a.check_completado?'Sí':'No'
+      ]);
+
+      const wb=XLSX.utils.book_new();
+      const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+
+      // Column widths
+      ws['!cols']=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:6},{wch:18},
+                   {wch:30},{wch:24},{wch:10},{wch:10},{wch:6},
+                   {wch:24},{wch:20},{wch:24},
+                   {wch:22},{wch:16},{wch:22},{wch:16},
+                   {wch:40},{wch:10}];
+
+      XLSX.utils.book_append_sheet(wb,ws,'Alumnos');
+      XLSX.writeFile(wb,'wakeup-alumnos-'+today.replace(/\//g,'-')+'.xlsx');
+    } catch(err){
+      console.error(err); alert('Error al generar Excel: '+err.message);
+    }
+    btn.disabled=false; btn.textContent='⬇ Excel completo';
+  }
+
   const hiddenCols=new Set();
 
   function toggleCol(col, btn){
@@ -669,9 +717,9 @@
 
       // Column config per mode
       const configs={
-        fichas:{colWidths:[1400,1400,1200,1500,900,900,900,1300],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Pantalón','Campera','Bota','Foto']},
-        obs:   {colWidths:[1100,1100,900,1200,800,800,800,1200,1200,1100],headers:['Apellido','Nombre completo','Nombre preferido','Colegio','Pantalón','Campera','Bota','Obs. médicas','Dieta','Foto']},
-        padres:{colWidths:[1200,1200,1300,900,900,900,1500,1600,1500],headers:['Apellido','Nombre completo','Colegio','Pantalón','Campera','Bota','Nombre padre','Tel. padre','Nombre madre']}
+        fichas:{colWidths:[1300,1300,1100,1400,800,900,900,900,1300],headers:['Apellido','Nombre completo','N. Pref.','Colegio','Sexo','Pantalón','Campera','Bota','Foto']},
+        obs:   {colWidths:[1000,1000,800,1100,750,750,750,750,1100,1100,1000],headers:['Apellido','Nombre completo','N. Pref.','Colegio','Sexo','Pantalón','Campera','Bota','Obs. médicas','Dieta','Foto']},
+        padres:{colWidths:[1100,1100,1200,800,900,900,900,1400,1500,1400],headers:['Apellido','Nombre completo','Colegio','Sexo','Pantalón','Campera','Bota','Nombre padre','Tel. padre','Nombre madre']}
       };
       const {colWidths,headers}=configs[mode];
 
@@ -701,20 +749,20 @@
       const dataRows=filtered.map(a=>{
         const buf=imgMap[a.id];
         if(mode==='fichas'){
-          return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),mkCell(a.talle_pantalon,4),mkCell(a.talle_campera,5),mkCell(a.talle_bota,6),mkPhotoCell(buf,7)]});
+          return new TableRow({children:[mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),mkCell(a.sexo,4),mkCell(a.talle_pantalon,5),mkCell(a.talle_campera,6),mkCell(a.talle_bota,7),mkPhotoCell(buf,8)]});
         }
         if(mode==='obs'){
           return new TableRow({children:[
             mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.apodo,2),mkCell(a.colegio,3),
-            mkCell(a.talle_pantalon,4),mkCell(a.talle_campera,5),mkCell(a.talle_bota,6),
-            mkCell(a.obs_salud,7,'CC0000'),mkCell(a.obs_dieta,8,'996600'),mkPhotoCell(buf,9)
+            mkCell(a.sexo,4),mkCell(a.talle_pantalon,5),mkCell(a.talle_campera,6),mkCell(a.talle_bota,7),
+            mkCell(a.obs_salud,8,'CC0000'),mkCell(a.obs_dieta,9,'996600'),mkPhotoCell(buf,10)
           ]});
         }
         if(mode==='padres'){
           return new TableRow({children:[
             mkCell(a.apellido,0),mkCell(a.nombre,1),mkCell(a.colegio,2),
-            mkCell(a.talle_pantalon,3),mkCell(a.talle_campera,4),mkCell(a.talle_bota,5),
-            mkCell(a.nombre_padre,6),mkCell(a.telefono_padre,7),mkCell(a.nombre_madre,8)
+            mkCell(a.sexo,3),mkCell(a.talle_pantalon,4),mkCell(a.talle_campera,5),mkCell(a.talle_bota,6),
+            mkCell(a.nombre_padre,7),mkCell(a.telefono_padre,8),mkCell(a.nombre_madre,9)
           ]});
         }
       });

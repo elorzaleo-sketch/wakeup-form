@@ -304,7 +304,6 @@
     .hero-title { font-size: 22px; }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
 
@@ -371,6 +370,16 @@
     </div>
 
     <div class="field">
+      <label>Sexo<span class="req">*</span></label>
+      <div class="age-group" id="radiosSexo">
+        <div class="age-btn" onclick="selectSexo(this,'Masculino')">Masculino</div>
+        <div class="age-btn" onclick="selectSexo(this,'Femenino')">Femenino</div>
+        <div class="age-btn" onclick="selectSexo(this,'Prefiero no responder')" style="font-size:12px">No respondo</div>
+      </div>
+      <input type="hidden" id="sexo">
+    </div>
+
+    <div class="field">
       <label>Colegio / Grupo<span class="req">*</span></label>
       <select id="colegio" required>
         <option value="" disabled selected>Seleccioná tu colegio</option>
@@ -401,7 +410,7 @@
     </div>
 
     <div class="photo-zone" id="photoZone">
-      <input type="file" id="photoInput" accept="image/*,.heic,.heif" onchange="previewPhoto(this)">
+      <input type="file" id="photoInput" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="previewPhoto(this)">
       <div id="photoPlaceholder">
         <div class="photo-icon">📸</div>
         <p>Subí tu mejor foto del 2026<br>que se vea bien tu cara</p>
@@ -511,12 +520,20 @@
 
   let edadSeleccionada = '';
   let talles = { pantalon: '', campera: '' };
+  let sexoSeleccionado = '';
 
   function selectAge(el, val) {
     document.querySelectorAll('#radiosEdad .age-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     edadSeleccionada = val;
     document.getElementById('edad').value = val;
+  }
+
+  function selectSexo(el, val) {
+    document.querySelectorAll('#radiosSexo .age-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    sexoSeleccionado = val;
+    document.getElementById('sexo').value = val;
   }
 
   function selectTalle(tipo, el, val) {
@@ -529,24 +546,21 @@
 
   let processedPhotoFile = null;
 
-  async function previewPhoto(input) {
+  function previewPhoto(input) {
     if (!input.files || !input.files[0]) return;
-    let file = input.files[0];
-    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
-                   file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+    const file = input.files[0];
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const validExts = ['.jpg', '.jpeg', '.png', '.webp'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
 
-    document.getElementById('photoName').style.display = 'block';
-    document.getElementById('photoName').textContent = isHeic ? '⏳ Convirtiendo foto...' : '⏳ Cargando...';
-
-    if (isHeic) {
-      try {
-        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
-        file = new File([converted], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
-      } catch (err) {
-        console.error('Error convirtiendo HEIC:', err);
-        document.getElementById('photoName').textContent = '⚠️ Error al convertir. Intentá con JPG o PNG.';
-        return;
-      }
+    if (!validTypes.includes(file.type) && !validExts.includes(ext)) {
+      document.getElementById('photoPlaceholder').style.display = 'block';
+      document.getElementById('photoName').style.display = 'block';
+      document.getElementById('photoName').textContent = '⚠️ Formato no válido. Usá JPG, JPEG o PNG.';
+      document.getElementById('photoName').style.color = 'var(--pink)';
+      input.value = '';
+      processedPhotoFile = null;
+      return;
     }
 
     processedPhotoFile = file;
@@ -556,6 +570,8 @@
       preview.src = e.target.result;
       preview.style.display = 'block';
       document.getElementById('photoPlaceholder').style.display = 'none';
+      document.getElementById('photoName').style.display = 'block';
+      document.getElementById('photoName').style.color = '';
       document.getElementById('photoName').textContent = '✓ ' + file.name;
     };
     reader.readAsDataURL(file);
@@ -564,8 +580,9 @@
   async function handleSubmit(e) {
     e.preventDefault();
 
-    const nombre = document.getElementById('nombre').value.trim();
-    const apellido = document.getElementById('apellido').value.trim();
+    const toTitleCase = s => s.toLowerCase().replace(/\w/g, c => c.toUpperCase());
+    const nombre = toTitleCase(document.getElementById('nombre').value.trim());
+    const apellido = toTitleCase(document.getElementById('apellido').value.trim());
     const edad = edadSeleccionada;
     const colegio = document.getElementById('colegio').value;
     const photoFile = processedPhotoFile || document.getElementById('photoInput').files[0];
@@ -579,6 +596,10 @@
     }
     if (!edad) {
       showError('Por favor seleccioná tu edad.');
+      return;
+    }
+    if (!sexoSeleccionado) {
+      showError('Por favor seleccioná tu sexo.');
       return;
     }
     if (!colegio) {
@@ -608,7 +629,7 @@
 
     try {
       // Upload photo
-      const ext = photoFile.type === 'image/jpeg' ? 'jpg' : photoFile.name.split('.').pop();
+      const ext = photoFile.name.split('.').pop().toLowerCase();
       const fileName = `${Date.now()}_${nombre}_${apellido}.${ext}`.replace(/\s+/g, '_');
 
       const { data: uploadData, error: uploadError } = await db.storage
@@ -626,6 +647,7 @@
         apellido,
         apodo: document.getElementById('apodo').value.trim(),
         edad,
+        sexo: sexoSeleccionado,
         colegio,
         fun_fact: document.getElementById('fun_fact').value.trim(),
         playlist: document.getElementById('playlist').value.trim(),

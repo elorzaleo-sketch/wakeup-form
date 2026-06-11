@@ -304,6 +304,7 @@
     .hero-title { font-size: 22px; }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
 
@@ -400,7 +401,7 @@
     </div>
 
     <div class="photo-zone" id="photoZone">
-      <input type="file" id="photoInput" accept="image/*" onchange="previewPhoto(this)">
+      <input type="file" id="photoInput" accept="image/*,.heic,.heif" onchange="previewPhoto(this)">
       <div id="photoPlaceholder">
         <div class="photo-icon">📸</div>
         <p>Subí tu mejor foto del 2026<br>que se vea bien tu cara</p>
@@ -526,19 +527,38 @@
     document.getElementById('talle_' + tipo).value = val;
   }
 
-  function previewPhoto(input) {
-    if (input.files && input.files[0]) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const preview = document.getElementById('photoPreview');
-        preview.src = e.target.result;
-        preview.style.display = 'block';
-        document.getElementById('photoPlaceholder').style.display = 'none';
-        document.getElementById('photoName').style.display = 'block';
-        document.getElementById('photoName').textContent = '✓ ' + input.files[0].name;
-      };
-      reader.readAsDataURL(input.files[0]);
+  let processedPhotoFile = null;
+
+  async function previewPhoto(input) {
+    if (!input.files || !input.files[0]) return;
+    let file = input.files[0];
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+                   file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+    document.getElementById('photoName').style.display = 'block';
+    document.getElementById('photoName').textContent = isHeic ? '⏳ Convirtiendo foto...' : '⏳ Cargando...';
+
+    if (isHeic) {
+      try {
+        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+        file = new File([converted], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
+      } catch (err) {
+        console.error('Error convirtiendo HEIC:', err);
+        document.getElementById('photoName').textContent = '⚠️ Error al convertir. Intentá con JPG o PNG.';
+        return;
+      }
     }
+
+    processedPhotoFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('photoPreview');
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      document.getElementById('photoPlaceholder').style.display = 'none';
+      document.getElementById('photoName').textContent = '✓ ' + file.name;
+    };
+    reader.readAsDataURL(file);
   }
 
   async function handleSubmit(e) {
@@ -548,7 +568,7 @@
     const apellido = document.getElementById('apellido').value.trim();
     const edad = edadSeleccionada;
     const colegio = document.getElementById('colegio').value;
-    const photoFile = document.getElementById('photoInput').files[0];
+    const photoFile = processedPhotoFile || document.getElementById('photoInput').files[0];
 
     const errorEl = document.getElementById('errorMsg');
     errorEl.style.display = 'none';
@@ -588,7 +608,7 @@
 
     try {
       // Upload photo
-      const ext = photoFile.name.split('.').pop();
+      const ext = photoFile.type === 'image/jpeg' ? 'jpg' : photoFile.name.split('.').pop();
       const fileName = `${Date.now()}_${nombre}_${apellido}.${ext}`.replace(/\s+/g, '_');
 
       const { data: uploadData, error: uploadError } = await db.storage

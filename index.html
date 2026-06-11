@@ -361,7 +361,7 @@
 
     <div class="field">
       <label>Edad<span class="req">*</span></label>
-      <div class="age-group">
+      <div class="age-group" id="radiosEdad">
         <div class="age-btn" onclick="selectAge(this,'17')">17</div>
         <div class="age-btn" onclick="selectAge(this,'18')">18</div>
         <div class="age-btn" onclick="selectAge(this,'19')">19</div>
@@ -408,6 +408,53 @@
       </div>
       <img id="photoPreview" class="photo-preview" alt="Vista previa">
       <p class="photo-name" id="photoName"></p>
+    </div>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span class="divider-label">Ropa de nieve</span>
+      <div class="divider-line"></div>
+    </div>
+
+    <div class="field" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:20px">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Para prepararte la ropa de nieve en Bariloche, necesitamos que completes estos talles. Si algo no te queda perfecto, allá lo podemos cambiar — pero intentá ser lo más preciso posible. <strong style="color:var(--text)">Elegí tu talle real y actual.</strong></p>
+    </div>
+
+    <div class="field">
+      <label>Pantalón de nieve<span class="req">*</span></label>
+      <div class="radio-group" id="radiosPantalon">
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'XS')">XS</div>
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'S')">S</div>
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'M')">M</div>
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'L')">L</div>
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'XL')">XL</div>
+        <div class="age-btn" onclick="selectTalle('pantalon',this,'XXL')">XXL</div>
+      </div>
+      <input type="hidden" id="talle_pantalon">
+    </div>
+
+    <div class="field">
+      <label>Campera de nieve<span class="req">*</span></label>
+      <div class="radio-group" id="radiosCampera">
+        <div class="age-btn" onclick="selectTalle('campera',this,'XS')">XS</div>
+        <div class="age-btn" onclick="selectTalle('campera',this,'S')">S</div>
+        <div class="age-btn" onclick="selectTalle('campera',this,'M')">M</div>
+        <div class="age-btn" onclick="selectTalle('campera',this,'L')">L</div>
+        <div class="age-btn" onclick="selectTalle('campera',this,'XL')">XL</div>
+        <div class="age-btn" onclick="selectTalle('campera',this,'XXL')">XXL</div>
+      </div>
+      <input type="hidden" id="talle_campera">
+    </div>
+
+    <div class="field">
+      <label>Bota de nieve<span class="req">*</span> <span style="text-transform:none;font-weight:300;font-size:11px;letter-spacing:0">— tu talle real de calzado</span></label>
+      <select id="talle_bota" required>
+        <option value="" disabled selected>Seleccioná tu talle</option>
+        <option>33</option><option>34</option><option>35</option>
+        <option>36</option><option>37</option><option>38</option>
+        <option>39</option><option>40</option><option>41</option>
+        <option>42</option><option>43</option><option>44</option>
+      </select>
     </div>
 
     <div class="divider">
@@ -462,12 +509,21 @@
   const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let edadSeleccionada = '';
+  let talles = { pantalon: '', campera: '' };
 
   function selectAge(el, val) {
-    document.querySelectorAll('.age-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#radiosEdad .age-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     edadSeleccionada = val;
     document.getElementById('edad').value = val;
+  }
+
+  function selectTalle(tipo, el, val) {
+    const groupId = 'radios' + tipo.charAt(0).toUpperCase() + tipo.slice(1);
+    document.querySelectorAll('#' + groupId + ' .age-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    talles[tipo] = val;
+    document.getElementById('talle_' + tipo).value = val;
   }
 
   function previewPhoto(input) {
@@ -513,6 +569,18 @@
       showError('Por favor subí tu foto.');
       return;
     }
+    if (!talles.pantalon) {
+      showError('Por favor seleccioná tu talle de pantalón.');
+      return;
+    }
+    if (!talles.campera) {
+      showError('Por favor seleccioná tu talle de campera.');
+      return;
+    }
+    if (!document.getElementById('talle_bota').value) {
+      showError('Por favor seleccioná tu talle de bota.');
+      return;
+    }
 
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
@@ -542,6 +610,9 @@
         fun_fact: document.getElementById('fun_fact').value.trim(),
         playlist: document.getElementById('playlist').value.trim(),
         foto_url,
+        talle_pantalon: talles.pantalon,
+        talle_campera: talles.campera,
+        talle_bota: document.getElementById('talle_bota').value,
         nombre_padre: document.getElementById('nombre_padre').value.trim(),
         telefono_padre: document.getElementById('telefono_padre').value.trim(),
         nombre_madre: document.getElementById('nombre_madre').value.trim(),

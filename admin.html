@@ -629,86 +629,128 @@
     try{const r=await fetch(url);return await r.arrayBuffer();}catch{return null;}
   }
 
-  function applyExcelStyles(ws, headers, rowCount, colWidths){
-    // Header style - dark background, cyan text
-    const headerStyle = {
-      font: { bold: true, color: { rgb: '5DB4C9' }, name: 'Arial', sz: 11 },
-      fill: { fgColor: { rgb: '0D0D0D' }, patternType: 'solid' },
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      border: {
-        top:    { style: 'thin', color: { rgb: '5DB4C9' } },
-        bottom: { style: 'thin', color: { rgb: '5DB4C9' } },
-        left:   { style: 'thin', color: { rgb: '5DB4C9' } },
-        right:  { style: 'thin', color: { rgb: '5DB4C9' } }
-      }
+  async function loadXlsxStyle(){
+    await loadScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+  }
+
+  function sc(v, s){ return { v, s }; }
+
+  function buildStyledExcel(title, subtitle, headers, rows, colWidths, sheetName, filename){
+    const numCols = headers.length;
+    const CYAN    = '5DB4C9';
+    const DARK    = '111113';
+    const GRAY    = '3A3A3A';
+    const WHITE   = 'FFFFFF';
+    const LIGHT   = 'F0F8FA';
+    const BORDER  = { top:{style:'thin',color:{rgb:'CCCCCC'}}, bottom:{style:'thin',color:{rgb:'CCCCCC'}}, left:{style:'thin',color:{rgb:'CCCCCC'}}, right:{style:'thin',color:{rgb:'CCCCCC'}} };
+
+    const titleStyle = {
+      font:{ bold:true, sz:13, color:{rgb:DARK}, name:'Arial' },
+      fill:{ fgColor:{rgb:CYAN}, patternType:'solid' },
+      alignment:{ horizontal:'center', vertical:'center' }
     };
-    const rowStyleEven = {
-      font: { name: 'Arial', sz: 10 },
-      fill: { fgColor: { rgb: 'F7F7F7' }, patternType: 'solid' },
-      border: { top: { style: 'thin', color: { rgb: 'DDDDDD' } }, bottom: { style: 'thin', color: { rgb: 'DDDDDD' } }, left: { style: 'thin', color: { rgb: 'DDDDDD' } }, right: { style: 'thin', color: { rgb: 'DDDDDD' } } },
-      alignment: { vertical: 'center' }
+    const subtitleStyle = {
+      font:{ bold:true, sz:11, color:{rgb:WHITE}, name:'Arial' },
+      fill:{ fgColor:{rgb:GRAY}, patternType:'solid' },
+      alignment:{ horizontal:'center', vertical:'center' }
+    };
+    const colHeaderStyle = {
+      font:{ bold:true, sz:10, color:{rgb:CYAN}, name:'Arial' },
+      fill:{ fgColor:{rgb:DARK}, patternType:'solid' },
+      alignment:{ horizontal:'center', vertical:'center', wrapText:true },
+      border: BORDER
     };
     const rowStyleOdd = {
-      font: { name: 'Arial', sz: 10 },
-      fill: { fgColor: { rgb: 'FFFFFF' }, patternType: 'solid' },
-      border: { top: { style: 'thin', color: { rgb: 'DDDDDD' } }, bottom: { style: 'thin', color: { rgb: 'DDDDDD' } }, left: { style: 'thin', color: { rgb: 'DDDDDD' } }, right: { style: 'thin', color: { rgb: 'DDDDDD' } } },
-      alignment: { vertical: 'center' }
+      font:{ sz:10, name:'Arial' },
+      fill:{ fgColor:{rgb:WHITE}, patternType:'solid' },
+      alignment:{ vertical:'center' },
+      border: BORDER
     };
+    const rowStyleEven = {
+      font:{ sz:10, name:'Arial' },
+      fill:{ fgColor:{rgb:LIGHT}, patternType:'solid' },
+      alignment:{ vertical:'center' },
+      border: BORDER
+    };
+    const numStyle = {
+      font:{ sz:10, name:'Arial', color:{rgb:'888888'} },
+      fill:{ fgColor:{rgb:WHITE}, patternType:'solid' },
+      alignment:{ horizontal:'center', vertical:'center' },
+      border: BORDER
+    };
+    const numStyleEven = { ...numStyle, fill:{ fgColor:{rgb:LIGHT}, patternType:'solid' } };
 
-    // Apply header styles
-    for(let c=0; c<headers.length; c++){
-      const cell = XLSX.utils.encode_cell({r:0, c});
-      if(ws[cell]) ws[cell].s = headerStyle;
-    }
-    // Apply row styles
-    for(let r=1; r<=rowCount; r++){
-      for(let c=0; c<headers.length; c++){
-        const cell = XLSX.utils.encode_cell({r, c});
-        if(!ws[cell]) ws[cell] = {v:'', t:'s'};
-        ws[cell].s = r % 2 === 0 ? rowStyleEven : rowStyleOdd;
-      }
-    }
-    // Row height
-    ws['!rows'] = [{hpt:22}];
-    for(let r=1; r<=rowCount; r++) ws['!rows'].push({hpt:18});
-    // Col widths
-    ws['!cols'] = colWidths;
+    // Build AOA
+    const aoa = [];
+    // Row 0: title (merged)
+    const titleRow = Array(numCols+1).fill(sc('', titleStyle));
+    titleRow[0] = sc(title, titleStyle);
+    aoa.push(titleRow);
+    // Row 1: subtitle
+    const subRow = Array(numCols+1).fill(sc('', subtitleStyle));
+    subRow[0] = sc(subtitle, subtitleStyle);
+    aoa.push(subRow);
+    // Row 2: empty spacer
+    aoa.push(Array(numCols+1).fill(sc('', {fill:{fgColor:{rgb:DARK},patternType:'solid'}})));
+    // Row 3: col headers (col A = "N")
+    const hRow = [sc('N', colHeaderStyle), ...headers.map(h => sc(h, colHeaderStyle))];
+    aoa.push(hRow);
+    // Data rows
+    rows.forEach((row, i) => {
+      const st = i%2===0 ? rowStyleOdd : rowStyleEven;
+      const nst = i%2===0 ? numStyle : numStyleEven;
+      aoa.push([sc(i+1, nst), ...row.map(v => sc(v||'', st))]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Merges for title and subtitle
+    ws['!merges'] = [
+      { s:{r:0,c:0}, e:{r:0,c:numCols} },
+      { s:{r:1,c:0}, e:{r:1,c:numCols} },
+      { s:{r:2,c:0}, e:{r:2,c:numCols} }
+    ];
+
+    // Row heights
+    ws['!rows'] = [{hpt:28},{hpt:22},{hpt:8},{hpt:32}];
+    for(let i=0;i<rows.length;i++) ws['!rows'].push({hpt:18});
+
+    // Col widths (col A = N number)
+    ws['!cols'] = [{wch:4}, ...colWidths];
+
+    // Autofilter on header row
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:3,c:0}, e:{r:3+rows.length,c:numCols}}) };
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const today = new Date().toLocaleDateString('es-AR');
+    XLSX.writeFile(wb, filename+'-'+today.replace(/\//g,'-')+'.xlsx');
   }
 
   async function exportExcel(){
     const btn=document.getElementById('exportXlsBtn');
     btn.disabled=true; btn.textContent='Generando Excel...';
     try {
-      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      await loadXlsxStyle();
       const filtered=getFiltered();
-      const today=new Date().toLocaleDateString('es-AR');
-
       const headers=['Apellido','Nombre completo','N. Pref.','Sexo','Edad','Colegio',
-                     'Playlist','Pantalón','Campera','Bota',
+                     'Pantalón','Campera','Bota',
                      'Obs. médicas','Dieta','Observaciones',
                      'Nombre padre','Tel. padre','Nombre madre','Tel. madre','Revisado'];
-
       const rows=filtered.map(a=>[
         a.apellido||'',a.nombre||'',a.apodo||'',a.sexo||'',a.edad||'',a.colegio||'',
-        a.playlist||'',a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
+        a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
         a.obs_salud||'',a.obs_dieta||'',a.obs_general||'',
         a.nombre_padre||'',a.telefono_padre||'',a.nombre_madre||'',a.telefono_madre||'',
         a.check_completado?'Sí':'No'
       ]);
-
-      const colWidths=[{wch:16},{wch:22},{wch:14},{wch:14},{wch:6},{wch:18},
-                       {wch:24},{wch:10},{wch:10},{wch:6},
-                       {wch:24},{wch:20},{wch:24},
-                       {wch:22},{wch:14},{wch:22},{wch:14},{wch:10}];
-
-      const wb=XLSX.utils.book_new();
-      const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-      applyExcelStyles(ws, headers, rows.length, colWidths);
-      XLSX.utils.book_append_sheet(wb,ws,'Alumnos');
-      XLSX.writeFile(wb,'wakeup-alumnos-'+today.replace(/\//g,'-')+'.xlsx');
-    } catch(err){
-      console.error(err); alert('Error al generar Excel: '+err.message);
-    }
+      const colWidths=[{wch:16},{wch:22},{wch:12},{wch:12},{wch:6},{wch:18},
+                       {wch:10},{wch:10},{wch:6},
+                       {wch:22},{wch:18},{wch:22},
+                       {wch:22},{wch:14},{wch:22},{wch:14},{wch:8}];
+      buildStyledExcel('WAKE UP VIAJES - LISTADO COMPLETO DE ALUMNOS','Bariloche 2026',
+        headers, rows, colWidths, 'Alumnos', 'wakeup-alumnos');
+    } catch(err){ console.error(err); alert('Error: '+err.message); }
     btn.disabled=false; btn.textContent='⬇ Excel completo';
   }
 
@@ -716,27 +758,18 @@
     const btn=document.getElementById('exportRopaBtn');
     btn.disabled=true; btn.textContent='Generando...';
     try {
-      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      await loadXlsxStyle();
       const filtered=getFiltered();
-      const today=new Date().toLocaleDateString('es-AR');
-
       const headers=['Apellido','Nombre completo','Sexo','Edad','Colegio','Pantalón','Campera','Bota','Observaciones'];
       const rows=filtered.map(a=>[
         a.apellido||'',a.nombre||'',a.sexo||'',a.edad||'',a.colegio||'',
         a.talle_pantalon||'',a.talle_campera||'',a.talle_bota||'',
         a.obs_general||''
       ]);
-
-      const colWidths=[{wch:16},{wch:22},{wch:14},{wch:6},{wch:18},{wch:10},{wch:10},{wch:6},{wch:24}];
-
-      const wb=XLSX.utils.book_new();
-      const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-      applyExcelStyles(ws, headers, rows.length, colWidths);
-      XLSX.utils.book_append_sheet(wb,ws,'Ropa');
-      XLSX.writeFile(wb,'wakeup-ropa-'+today.replace(/\//g,'-')+'.xlsx');
-    } catch(err){
-      console.error(err); alert('Error al generar Excel: '+err.message);
-    }
+      const colWidths=[{wch:16},{wch:22},{wch:12},{wch:6},{wch:18},{wch:10},{wch:10},{wch:6},{wch:22}];
+      buildStyledExcel('WAKE UP VIAJES - LISTADO DE PASAJEROS - TALLES ROPA','Bariloche 2026',
+        headers, rows, colWidths, 'Ropa', 'wakeup-ropa');
+    } catch(err){ console.error(err); alert('Error: '+err.message); }
     btn.disabled=false; btn.textContent='⬇ Excel ropa';
   }
 

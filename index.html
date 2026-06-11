@@ -393,22 +393,6 @@
       </select>
     </div>
 
-    <div class="field">
-      <label>Fun fact <span style="text-transform:none;font-weight:300;font-size:11px;letter-spacing:0">— algo cómico o curioso de vos</span></label>
-      <textarea id="fun_fact" placeholder="Ej: Puedo mover la oreja izquierda sola..."></textarea>
-    </div>
-
-    <div class="field">
-      <label>Tema infaltable en la playlist</label>
-      <input type="text" id="playlist" placeholder="Canción + Artista">
-    </div>
-
-    <div class="divider">
-      <div class="divider-line"></div>
-      <span class="divider-label">Tu foto <span style="color:#F11D8C">*</span></span>
-      <div class="divider-line"></div>
-    </div>
-
     <div class="photo-zone" id="photoZone">
       <input type="file" id="photoInput" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="previewPhoto(this)">
       <div id="photoPlaceholder">
@@ -422,16 +406,16 @@
 
     <div class="divider">
       <div class="divider-line"></div>
-      <span class="divider-label">Ropa de nieve</span>
+      <span class="divider-label">Talles de ropa</span>
       <div class="divider-line"></div>
     </div>
 
     <div class="field" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:20px">
-      <p style="font-size:13px;color:var(--muted);line-height:1.6">Para prepararte la ropa de nieve en Bariloche, necesitamos que completes estos talles. Si algo no te queda perfecto, allá lo podemos cambiar — pero intentá ser lo más preciso posible. <strong style="color:var(--text)">Elegí tu talle real y actual.</strong></p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Para prepararte la ropa en Bariloche, necesitamos que completes estos talles. Si algo no te queda perfecto, allá lo podemos cambiar — pero intentá ser lo más preciso posible. <strong style="color:var(--text)">Elegí tu talle real y actual.</strong></p>
     </div>
 
     <div class="field">
-      <label>Pantalón de nieve<span class="req">*</span></label>
+      <label>Pantalón<span class="req">*</span></label>
       <div class="radio-group" id="radiosPantalon">
         <div class="age-btn" onclick="selectTalle('pantalon',this,'XS')">XS</div>
         <div class="age-btn" onclick="selectTalle('pantalon',this,'S')">S</div>
@@ -444,7 +428,7 @@
     </div>
 
     <div class="field">
-      <label>Campera de nieve<span class="req">*</span></label>
+      <label>Campera<span class="req">*</span></label>
       <div class="radio-group" id="radiosCampera">
         <div class="age-btn" onclick="selectTalle('campera',this,'XS')">XS</div>
         <div class="age-btn" onclick="selectTalle('campera',this,'S')">S</div>
@@ -457,7 +441,7 @@
     </div>
 
     <div class="field">
-      <label>Bota de nieve<span class="req">*</span> <span style="text-transform:none;font-weight:300;font-size:11px;letter-spacing:0">— tu talle real de calzado</span></label>
+      <label>Bota<span class="req">*</span> <span style="text-transform:none;font-weight:300;font-size:11px;letter-spacing:0">— tu talle real de calzado</span></label>
       <select id="talle_bota" required>
         <option value="" disabled selected>Seleccioná tu talle</option>
         <option>33</option><option>34</option><option>35</option>
@@ -469,7 +453,7 @@
 
     <div class="divider">
       <div class="divider-line"></div>
-      <span class="divider-label">Datos de tus padres</span>
+      <span class="divider-label">Datos de tus padres/tutores</span>
       <div class="divider-line"></div>
     </div>
 
@@ -649,7 +633,6 @@
         edad,
         sexo: sexoSeleccionado,
         colegio,
-        fun_fact: document.getElementById('fun_fact').value.trim(),
         playlist: document.getElementById('playlist').value.trim(),
         foto_url,
         talle_pantalon: talles.pantalon,

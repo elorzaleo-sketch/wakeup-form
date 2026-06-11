@@ -578,7 +578,21 @@
 
   async function toggleCheck(id,current){
     const {error}=await db.from('alumnos').update({check_completado:!current}).eq('id',id);
-    if(!error){const a=allAlumnos.find(x=>x.id===id);if(a)a.check_completado=!current;updateStats();renderTable();}
+    if(!error){
+      const a=allAlumnos.find(x=>x.id===id);
+      if(a) a.check_completado=!current;
+      updateStats();
+      renderTable();
+      reapplyHiddenCols();
+    }
+  }
+
+  function reapplyHiddenCols(){
+    hiddenCols.forEach(col=>{
+      document.querySelectorAll('[data-col="'+col+'"]').forEach(el=>{
+        el.style.display='none';
+      });
+    });
   }
 
   function openModal(url,name){
